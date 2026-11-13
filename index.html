@@ -1176,7 +1176,12 @@ function phraseBreaks(root){
     const s = n.nodeValue, cut = [];
     for (let i = 1; i < s.length; i++) {
       const a = s[i - 1], b = s[i];
-      if ((/[、。！？」』）)]/.test(a) && !/[、。！？」』）)]/.test(b)) || (/[ぁ-ゟ]/.test(a) && /[ァ-ヺ㐀-鿿A-Za-z0-9「『（(]/.test(b))) cut.push(i);
+      if (/[、。！？」』）)]/.test(a) && !/[、。！？」』）)]/.test(b)) { cut.push(i); continue; }
+      if (!(/[ぁ-ゟ]/.test(a) && /[ァ-ヺ㐀-鿿A-Za-z0-9「『（(]/.test(b))) continue;
+      // 漢字に挟まれた送り仮名1文字（切り替える・取り組み・申し送り など）では切らない。助詞1文字（を・は・が など）なら切る
+      let j = i - 1; while (j > 0 && /[ぁ-ゟ]/.test(s[j - 1])) j--;
+      if (i - j === 1 && j > 0 && /[㐀-鿿]/.test(s[j - 1]) && !/[をはがにでとのもへや]/.test(a)) continue;
+      cut.push(i);
     }
     if (!cut.length) return;
     const frag = document.createDocumentFragment(); let last = 0;
