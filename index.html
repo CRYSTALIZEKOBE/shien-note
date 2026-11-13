@@ -2252,12 +2252,12 @@ function noticeCard(due, plans, stale){
     if (u.certUntil) { const n = daysUntil(u.certUntil); if (n <= 60) N.push({ sev: n <= 14 ? 0 : 1, icon: 'doc', print: false, html: `<b>${esc(u.name)}</b><span>受給者証の有効期限：${md(u.certUntil)}（${n < 0 ? -n + '日過ぎています' : 'あと' + n + '日'}）</span>`, act: btn('openUserTab', open, '開く') }); }
     if (u.medChecked && daysSince(u.medChecked) >= 180) N.push({ sev: 2, icon: 'doc', print: false, html: `<b>${esc(u.name)}</b><span>お薬手帳の確認から6か月たちました（最終 ${md(u.medChecked)}）</span>`, act: btn('openUserTab', open, '開く') });
   });
-  if (crypt.on && !crypt.rec) N.push({ sev: 1, icon: 'key', print: false, html: '<span>回復用コードがまだありません。パスワードを忘れると、データを開けなくなります</span>',
+  if (!APP_VIEWER && crypt.on && !crypt.rec) N.push({ sev: 1, icon: 'key', print: false, html: '<span>回復用コードがまだありません。パスワードを忘れると、データを開けなくなります</span>',
     act: btn('makeRec', '', ic('key') + '作る') });
-  if (!APP_TRIAL && sampleTargets().users.length) N.push({ sev: 2, icon: 'users', html: '<span>サンプルデータが入っています。使い始めるときに消してください</span>',
+  if (!APP_TRIAL && !APP_VIEWER && sampleTargets().users.length) N.push({ sev: 2, icon: 'users', html: '<span>サンプルデータが入っています。使い始めるときに消してください</span>',
     act: btn('removeSamples', '', ic('trash') + '消す') });
   const last = local.get('lastBackup'), snooze = local.get('backupSnooze'), bdays = daysSince(last);
-  if (bdays >= BACKUP_DAYS && !(snooze && snooze >= today())) N.push({ sev: 2, icon: 'shield',
+  if (!APP_VIEWER && bdays >= BACKUP_DAYS && !(snooze && snooze >= today())) N.push({ sev: 2, icon: 'shield',
     html: `<span>${last ? `前回のバックアップ（ファイル）から${bdays}日たっています` : 'まだバックアップをファイルに保存していません'}</span>`,
     act: btn('export', '', ic('download') + '今すぐ保存') + btn('backupSnooze', '', 'あとで', 'ghost') });
   if (!N.length) return '';
@@ -5633,7 +5633,7 @@ function render(){
   if (cmpVer((db.meta || {}).version, APP_VERSION) > 0) html = `<div class="alert hard"><h2>${ic('warning')}ツールを新しい版に入れ替えてください</h2><div class="small">このデータは新しい版（${esc(db.meta.version)}）で保存されています。いま開いているツールは ${esc(verLabel())} です。古い版のまま使うと、新しい機能の記録が正しく表示されないことがあります。共有フォルダにある最新の作業支援ノートのファイルを開き直してください。</div></div>` + html;
   html = placeAlert() + html;
   if (!storageOK) html = `<div class="alert hard"><h2>${ic('warning')}データを保存できない状態です</h2><div class="small">このままページを閉じると内容が消えます。「設定」の「バックアップを保存」でファイルに保存してください。</div></div>` + html;
-  if (APP_VIEWER) html += `<p class="notice noprint">${ic('shield')}<span><span class="sent">閲覧専用です。記録はこのスマホに保存されず、閉じると消えます。</span></span></p>`;
+  if (APP_VIEWER) html += `<p class="notice noprint">${ic('shield')}<span><span class="sent">閲覧専用です。閉じると、記録は画面から消えます。</span></span></p>`;
   else html += `<p class="notice noprint">${ic('shield')}<span>${(sync.handle ? ['データはこのパソコンのブラウザと共有ファイルに保存されます。', crypt.on ? '共有ファイルは暗号化されたまま、<span class="nw">Google ドライブ</span>などでほかのパソコンに届きます。' : '共有ファイルは、<span class="nw">Google ドライブ</span>などでほかのパソコンに届きます。'] : ['データはこのパソコンのブラウザに保存され、外部には送信しません。']).map(t => `<span class="sent">${t}</span>`).join('')}<span class="sent">${crypt.on ? '暗号化：オン' : '暗号化：オフ'}</span></span></p>`;
   $('#app').innerHTML = html;
   labelTables($('#app'));
@@ -5653,7 +5653,7 @@ function labelTables(root){
 }
 // 開いた場所の確認：ZIP の中（一時フォルダ）から開いていると、ファイル自体があとで消えることがある（データはブラウザに残る）
 function placeAlert(){
-  if (APP_VIEWER) return `<div class="alert info small noprint row" style="gap:8px 12px"><span style="flex:1;min-width:200px"><b>${ic('lock')}閲覧専用です。</b>変更はできません。別のアプリに切り替えるか、5分操作しないと閉じます。</span><button class="btn small" data-act="viewerClose">閉じる</button></div>`;
+  if (APP_VIEWER) return viewerBanner();
   if (APP_TRIAL) return `<div class="alert info small noprint"><b>${ic('flag')}体験版です。</b>入力した内容は保存されず、開き直すと最初の状態に戻ります。共有・暗号化・バックアップ・書き出し・画像の保存は製品版で使えます。</div>`;
   if (local.get('pathOk')) return '';
   let p = location.pathname; try { p = decodeURIComponent(p); } catch(e) {}
@@ -6100,34 +6100,63 @@ function viewerArm(){
   addEventListener('pagehide', viewerClose);
   idle();
 }
-function viewerOpen(msg){
+// 前回のファイルは、暗号化されたまま（パスワードがないと読めない形で）このスマホに覚えておく
+let vFile = null;
+const vdb = (mode, fn) => new Promise((res, rej) => {
+  const q = indexedDB.open('shienNoteView', 1);
+  q.onupgradeneeded = () => q.result.createObjectStore('f');
+  q.onerror = () => rej(q.error);
+  q.onsuccess = () => { const tx = q.result.transaction('f', mode); const r = fn(tx.objectStore('f')); tx.oncomplete = () => { q.result.close(); res(r && r.result); }; tx.onerror = () => rej(tx.error); };
+});
+const vLoad = () => vdb('readonly', s => s.get('last')).catch(() => null);
+const vSave = v => vdb('readwrite', s => s.put(v, 'last')).catch(() => {});
+const vForget = () => vdb('readwrite', s => s.delete('last')).catch(() => {});
+const vTime = t => { const d = new Date(t); return `${md(ymd(d))} ${hhmm(d)}`; };
+function viewerBanner(){
+  return `<div class="alert info small noprint row" style="gap:8px 12px"><span style="flex:1;min-width:200px"><b>${ic('lock')}閲覧専用です。</b>${vFile ? `<span class="nw">ファイルの日時：${vTime(vFile.time)}</span>。` : ''}別のアプリに切り替えるか、5分操作しないと閉じます。</span><button class="btn small" data-act="viewerClose">閉じる</button></div>`;
+}
+async function viewerOpen(){
+  const saved = await vLoad();
   $('#nav').innerHTML = ''; $('#menuBtn').style.display = 'none';
   $('#app').innerHTML = `<div class="card" style="max-width:520px;margin:24px auto">
     <h1 style="font-size:22px;margin:0 0 8px">スマホ閲覧版</h1>
-    <p class="small muted" style="margin:0 0 6px">共有データファイルを選び、パスワードを入れると記録を見られます。</p>
-    <p class="small muted" style="margin:0 0 18px">見るだけで、変更はできません。記録はこのスマホに保存されず、閉じると消えます。</p>
+    <p class="small muted" style="margin:0 0 18px">${saved ? 'パスワードを入れると、前回のファイルの記録を見られます。' : '共有データファイルを選び、パスワードを入れると記録を見られます。'}見るだけで、変更はできません。</p>
     <form id="vform" autocomplete="off">
-      <div class="field"><label class="f" for="v_file">共有データファイル</label><input type="file" id="v_file" class="vh">
+      ${saved ? `<div class="field" id="v_saved"><label class="f">前回のファイル</label>
+        <div class="filepick" style="cursor:default"><span class="fp-name on">${esc(saved.name || '共有データファイル')}</span></div>
+        <div class="small muted" style="margin-top:6px">ファイルの日時：${vTime(saved.time)}　<span class="nw">（このスマホに暗号化したまま覚えています）</span></div>
+        <div class="row" style="gap:8px 16px;margin-top:8px"><button type="button" class="linkbtn small" id="v_other">別のファイルを選ぶ</button><button type="button" class="linkbtn small" id="v_forget">このスマホから消す</button></div></div>` : ''}
+      <div class="field" id="v_pick" ${saved ? 'hidden' : ''}><label class="f" for="v_file">共有データファイル</label><input type="file" id="v_file" class="vh">
         <label for="v_file" class="filepick"><span class="fp-btn">${ic('upload')}ファイルを選ぶ</span><span class="fp-name" id="v_name">まだ選んでいません</span></label>
-        <div class="small muted" style="margin-top:6px">Google ドライブの<span class="nw">「作業支援ノート_共有データ.json」</span>を選びます。</div></div>
+        <div class="small muted" style="margin-top:6px">Google ドライブの<span class="nw">「作業支援ノート_共有データ.json」</span>を選びます。新しい内容を見るときは、選び直してください。</div>
+        <label class="chip-check" style="margin-top:10px"><input type="checkbox" id="v_keep" checked><span>${ic('check')}このスマホに覚えておく（暗号化したまま）</span></label></div>
       <div class="field"><label class="f" for="v_pass">パスワード</label><input type="password" id="v_pass" required spellcheck="false" autocapitalize="off" autocomplete="current-password"></div>
-      ${msg ? `<p class="stale small" style="margin:0 0 14px">${ic('warning')}${esc(msg)}</p>` : ''}
+      <p class="stale small" id="v_msg" style="margin:0 0 14px" hidden></p>
       <button type="submit" class="btn primary" style="width:100%;justify-content:center">${ic('lock')}開く</button>
     </form></div>`;
-  $('#v_file').addEventListener('change', () => { const f = $('#v_file').files[0]; $('#v_name').textContent = f ? f.name : 'まだ選んでいません'; $('#v_name').classList.toggle('on', !!f); });
+  const say = m => { const p = $('#v_msg'); p.innerHTML = ic('warning') + esc(m); p.hidden = false; };
+  $('#v_file').addEventListener('change', () => { const f = $('#v_file').files[0]; $('#v_name').textContent = f ? f.name : 'まだ選んでいません'; $('#v_name').classList.toggle('on', !!f); $('#v_msg').hidden = true; });
+  if (saved) {
+    $('#v_other').addEventListener('click', () => { $('#v_saved').hidden = true; $('#v_pick').hidden = false; });
+    $('#v_forget').addEventListener('click', async () => { if (!confirm('このスマホに覚えているファイルを消しますか？')) return; await vForget(); viewerOpen(); });
+  }
   $('#vform').addEventListener('submit', async e => {
     e.preventDefault();
-    const f = $('#v_file').files[0], pass = $('#v_pass').value;
+    const f = $('#v_pick').hidden ? null : $('#v_file').files[0], pass = $('#v_pass').value;
     $('#v_pass').value = '';
-    if (!f) { viewerOpen('共有データファイルを選んでください。'); return; }
+    if (!f && !saved) { say('共有データファイルを選んでください。'); return; }
+    if (!f && !$('#v_pick').hidden) { say('共有データファイルを選んでください。'); return; }
+    const src = f ? { text: await f.text(), name: f.name, time: f.lastModified } : saved;
     let env = null;
-    try { env = JSON.parse(await f.text()); } catch(err) { viewerOpen('作業支援ノートの共有データファイルではありません。'); return; }
-    if (!isEnv(env)) { viewerOpen(env && Array.isArray(env.users) ? '暗号化されていないファイルは開けません。パソコンの作業支援ノートで、データを暗号化してから使ってください。' : '作業支援ノートの共有データファイルではありません。'); return; }
-    if (!crypt.supported) { viewerOpen('このブラウザでは開けません。Chrome または Safari で開いてください。'); return; }
+    try { env = JSON.parse(src.text); } catch(err) { say('作業支援ノートの共有データファイルではありません。'); return; }
+    if (!isEnv(env)) { say(env && Array.isArray(env.users) ? '暗号化されていないファイルは開けません。パソコンの作業支援ノートで、データを暗号化してから使ってください。' : '作業支援ノートの共有データファイルではありません。'); return; }
+    if (!crypt.supported) { say('このブラウザでは開けません。Chrome または Safari で開いてください。'); return; }
     let text;
-    try { ({ text } = await tryPassword(env, pass)); } catch(err) { viewerOpen('パスワードが違います。'); return; }
+    try { ({ text } = await tryPassword(env, pass)); } catch(err) { say('パスワードが違います。'); return; }
     let parsed = null; try { parsed = JSON.parse(text); } catch(err) {}
-    if (!parsed || !Array.isArray(parsed.users)) { viewerOpen('作業支援ノートの共有データファイルではありません。'); return; }
+    if (!parsed || !Array.isArray(parsed.users)) { say('作業支援ノートの共有データファイルではありません。'); return; }
+    if (f) { if ($('#v_keep').checked) await vSave(src); else await vForget(); }
+    vFile = { name: src.name, time: src.time };
     db = normalize(parsed); crypt.on = true; crypt.salt = env.salt;
     started = true; primeSettings(); state.view = 'today'; $('#menuBtn').style.display = ''; render(); window.scrollTo(0, 0); viewerArm();
   });
