@@ -521,13 +521,19 @@ div.docimg{padding:18px;text-align:center}
 
 
 
+.attn{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:4px 0 20px}
+.attn-col{background:var(--surface2);border-radius:12px;padding:12px 10px;text-align:center;min-width:0}
+.attn-h{font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap}
+.attn-n{margin-top:2px;font-size:13px;color:var(--muted)}
+.attn-n b{font-size:22px;color:var(--text);margin-right:2px}
 .offbox{margin-top:12px;background:var(--surface2);border-radius:12px;padding:10px 12px;font-size:14px}
 .offbox>b{display:flex;align-items:center;gap:6px;color:var(--muted)}
-.offname{display:inline-flex;align-items:center;gap:14px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 14px;font-weight:700;font-size:15px}
+.offname{display:inline-flex;flex-wrap:wrap;max-width:100%;align-items:center;gap:8px 12px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 6px 6px 14px;font-weight:700;font-size:15px}
+.offname .linkbtn,.offname>b{white-space:nowrap}
 .offname .dayb{border:0;background:var(--accent-weak);color:var(--accent);border-radius:8px;min-height:30px;padding:3px 10px}
 .offname .dayb:hover{filter:brightness(.96)}
 .calls{display:inline-flex;gap:4px}
-.callb{border:1px dashed var(--line);background:var(--surface);color:var(--muted);border-radius:8px;padding:3px 9px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:3px;min-height:30px;font-family:inherit}
+.callb{white-space:nowrap;border:1px dashed var(--line);background:var(--surface);color:var(--muted);border-radius:8px;padding:3px 9px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:3px;min-height:30px;font-family:inherit}
 .callb:hover{border-color:var(--accent);color:var(--accent)}
 .callb.done{border-style:solid;border-color:var(--ok);background:var(--ok-bg);color:var(--ok)}
 .callb .ic{width:15px;height:15px}
@@ -809,7 +815,7 @@ button.cal-cell:hover{background:var(--surface2)}
   /* インクを減らす：色付きの背景は白抜きにして、枠線で区別する */
   .badge,.chip{background:none!important;border:1px solid #999!important;color:#000!important}
   .icw{background:none!important}
-  .offbox,.vpoint,.alert{background:none!important;border:1px solid #bbb}
+  .offbox,.vpoint,.alert,.attn-col{background:none!important;border:1px solid #bbb}
   .ptable th{background:none!important}
   /* 通所曜日は、通所する曜日だけを文字で */
   .days{display:none!important}
@@ -2177,6 +2183,7 @@ function viewToday(){
       <button class="btn small noprint" data-act="bulkPlan" title="今日来る人のお休み・遅刻・在宅などや、今日だけ来る人をまとめて入れます">${ic('calendar')}予定をまとめて変える</button>
       </div>
     ${feat('equip') ? `<p class="small noprint" style="margin:-4px 0 14px"><button class="linkbtn small" data-act="goMode" data-v="equip">${ic('monitor')}席・機材の割り当てへ</button></p>` : ''}
+    ${attnBox(coming, homeToday, offToday)}
     ${coming.length ? todayPrintTable(coming, eqToday) + `<div class="tgrid noprint">${coming.map(u => {
         const ws = worksOf(u.id).filter(w => w.status === 'doing' || w.status === 'plan');
         const mine = eqToday(u.id), plan = todayPlan(u);
@@ -2199,6 +2206,13 @@ function viewToday(){
   if (feat('lunch')) html += lunchCard(coming);
 
   return html;
+}
+// 今日の通所：午前から・午後から・在宅・お休みの人数
+function attnBox(coming, homeToday, offToday){
+  const am = coming.filter(u => comesToday(u, 'am')).length, pm = coming.filter(u => !comesToday(u, 'am') && comesToday(u, 'pm')).length;
+  if (!am && !pm && !homeToday.length && !offToday.length) return '';
+  const col = (title, n) => `<div class="attn-col"><div class="attn-h">${title}</div><div class="attn-n"><b>${n}</b>名</div></div>`;
+  return `<div class="attn">${col('午前から', am)}${col('午後から', pm)}${col('在宅', homeToday.length)}${col('お休み', offToday.length)}</div>`;
 }
 // 「今日」の印刷用：来る人を1人1行の表にまとめる（画面のカードは印刷しない）
 function todayPrintTable(coming, eqToday){
