@@ -147,6 +147,8 @@ label.f{display:block;font-size:14px;font-weight:700;margin-bottom:5px}
 .muted{color:var(--muted)}
 .small{font-size:14px}
 .pre{white-space:pre-wrap;word-break:auto-phrase;overflow-wrap:anywhere}
+/* word-break:auto-phrase が効かないブラウザ（iPhone など）：文節の切れ目に入れた <wbr> だけで折り返す */
+.nophrase body,.nophrase .pre{word-break:keep-all;overflow-wrap:anywhere}
 .kv dt{font-size:13px;color:var(--muted);font-weight:700;margin-top:12px}
 .kv dt:first-child{margin-top:0}
 .kv dd{margin:2px 0 0}
@@ -420,6 +422,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .yn button:not(.on):hover{background:var(--surface2)}
 .yn button.on{background:var(--accent);color:var(--on-accent)}
 .yn button.on.no{background:var(--muted);color:var(--surface)}
+.vcard{max-width:520px;margin:28px auto;padding:28px 24px}
+.vcard .field{margin-bottom:26px}
+.vcard .field>.small{margin-top:10px!important;line-height:1.7}
+.vkeep{display:flex;align-items:flex-start;gap:10px;margin-top:18px;font-size:14px;line-height:1.6;cursor:pointer}
+.vkeep input{flex:none;width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent)}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .filepick{display:flex;align-items:center;gap:12px;min-height:46px;padding:6px 6px 6px 6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
 .filepick:hover{border-color:var(--accent)}
@@ -1156,6 +1163,27 @@ const local = {
   get(k){ if (!APP_VIEWER) try { const v = localStorage.getItem(KEY + '.' + k); if (v !== null) return v; } catch(e) {} return k in localMem ? localMem[k] : null; },
   set(k, v){ if (v == null) delete localMem[k]; else localMem[k] = v; if (APP_VIEWER) return; try { v == null ? localStorage.removeItem(KEY + '.' + k) : localStorage.setItem(KEY + '.' + k, v); } catch(e) {} }
 };
+// 文節で折り返す（word-break:auto-phrase）が効かないブラウザでは、文節の切れ目に <wbr> を入れる
+// 切れ目の目安：ひらがなの次に漢字・カタカナ・英数字・かっこが来るところ、句読点のあと
+const PHRASE_OK = !!(window.CSS && CSS.supports && CSS.supports('word-break', 'auto-phrase'));
+if (!PHRASE_OK) document.documentElement.classList.add('nophrase');
+const JA_RE = /[぀-ヿ㐀-鿿]/;
+function phraseBreaks(root){
+  if (PHRASE_OK || !root) return;
+  const tw = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, { acceptNode: n => n.nodeValue.length > 6 && JA_RE.test(n.nodeValue) && n.parentNode && !n.parentNode.closest('script,style,textarea,select,option,.nw') ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+  const list = []; while (tw.nextNode()) list.push(tw.currentNode);
+  list.forEach(n => {
+    const s = n.nodeValue, cut = [];
+    for (let i = 1; i < s.length; i++) {
+      const a = s[i - 1], b = s[i];
+      if ((/[、。！？」』）)]/.test(a) && !/[、。！？」』）)]/.test(b)) || (/[ぁ-ゟ]/.test(a) && /[ァ-ヺ㐀-鿿A-Za-z0-9「『（(]/.test(b))) cut.push(i);
+    }
+    if (!cut.length) return;
+    const frag = document.createDocumentFragment(); let last = 0;
+    cut.concat(s.length).forEach(i => { if (last) frag.appendChild(document.createElement('wbr')); frag.appendChild(document.createTextNode(s.slice(last, i))); last = i; });
+    n.parentNode.replaceChild(frag, n);
+  });
+}
 function toast(msg){
   const t = $('#toast'); t.classList.remove('undo');
   t.innerHTML = ic('check') + esc(msg); t.classList.add('show');
@@ -4111,6 +4139,7 @@ function openModal(title, body, onSubmit, extraFoot = '', opts = {}){
     <div class="dlg-f">${viewOnly ? `<span class="spacer"></span><button type="button" class="btn primary" data-close>閉じる</button>`
       : `${extraFoot}<span class="saveas" id="saveAs"></span><span class="spacer"></span><button type="button" class="btn" data-close>キャンセル</button><button type="submit" class="btn primary">${ic('check')}${opts.ok || '保存する'}</button>`}</div>
   </form>`;
+  phraseBreaks(modal);
   const form = $('#mform');
   const snap = () => JSON.stringify([...new FormData(form).entries()]);
   const initial = viewOnly ? '' : snap();
@@ -5638,7 +5667,7 @@ function render(){
   $('#app').innerHTML = html;
   labelTables($('#app'));
   if (APP_VIEWER) viewerPrune($('#app'));
-  bindInputs(); setHdr();
+  bindInputs(); setHdr(); phraseBreaks($('#app'));
 }
 // 同期で内容が変わったとき：入力中や入力画面を開いているときは描き直さない
 // スマホでは表を1行ずつのカードにする（横スクロールを出さない）。そのために各マスへ列の見出しを付けておく
@@ -6108,7 +6137,7 @@ const vdb = (mode, fn) => new Promise((res, rej) => {
   q.onerror = () => rej(q.error);
   q.onsuccess = () => { const tx = q.result.transaction('f', mode); const r = fn(tx.objectStore('f')); tx.oncomplete = () => { q.result.close(); res(r && r.result); }; tx.onerror = () => rej(tx.error); };
 });
-const vLoad = () => vdb('readonly', s => s.get('last')).catch(() => null);
+const vLoad = () => Promise.race([vdb('readonly', s => s.get('last')).catch(() => null), new Promise(r => setTimeout(() => r(null), 1500))]);
 const vSave = v => vdb('readwrite', s => s.put(v, 'last')).catch(() => {});
 const vForget = () => vdb('readwrite', s => s.delete('last')).catch(() => {});
 const vTime = t => { const d = new Date(t); return `${md(ymd(d))} ${hhmm(d)}`; };
@@ -6118,9 +6147,9 @@ function viewerBanner(){
 async function viewerOpen(){
   const saved = await vLoad();
   $('#nav').innerHTML = ''; $('#menuBtn').style.display = 'none';
-  $('#app').innerHTML = `<div class="card" style="max-width:520px;margin:24px auto">
-    <h1 style="font-size:22px;margin:0 0 8px">スマホ閲覧版</h1>
-    <p class="small muted" style="margin:0 0 18px">${saved ? 'パスワードを入れると、前回のファイルの記録を見られます。' : '共有データファイルを選び、パスワードを入れると記録を見られます。'}見るだけで、変更はできません。</p>
+  $('#app').innerHTML = `<div class="card vcard">
+    <h1 style="font-size:22px;margin:0 0 12px">スマホ閲覧版</h1>
+    <p class="small muted" style="margin:0 0 26px">${saved ? 'パスワードを入れると、前回のファイルの記録を見られます。' : '共有データファイルを選び、パスワードを入れると記録を見られます。'}見るだけで、変更はできません。</p>
     <form id="vform" autocomplete="off">
       ${saved ? `<div class="field" id="v_saved"><label class="f">前回のファイル</label>
         <div class="filepick" style="cursor:default"><span class="fp-name on">${esc(saved.name || '共有データファイル')}</span></div>
@@ -6129,11 +6158,12 @@ async function viewerOpen(){
       <div class="field" id="v_pick" ${saved ? 'hidden' : ''}><label class="f" for="v_file">共有データファイル</label><input type="file" id="v_file" class="vh">
         <label for="v_file" class="filepick"><span class="fp-btn">${ic('upload')}ファイルを選ぶ</span><span class="fp-name" id="v_name">まだ選んでいません</span></label>
         <div class="small muted" style="margin-top:6px">Google ドライブの<span class="nw">「作業支援ノート_共有データ.json」</span>を選びます。新しい内容を見るときは、選び直してください。</div>
-        <label class="chip-check" style="margin-top:10px"><input type="checkbox" id="v_keep" checked><span>${ic('check')}このスマホに覚えておく（暗号化したまま）</span></label></div>
+        <label class="vkeep"><input type="checkbox" id="v_keep" checked><span>このスマホに覚えておく（暗号化したまま）</span></label></div>
       <div class="field"><label class="f" for="v_pass">パスワード</label><input type="password" id="v_pass" required spellcheck="false" autocapitalize="off" autocomplete="current-password"></div>
       <p class="stale small" id="v_msg" style="margin:0 0 14px" hidden></p>
       <button type="submit" class="btn primary" style="width:100%;justify-content:center">${ic('lock')}開く</button>
     </form></div>`;
+  phraseBreaks($('#app'));
   const say = m => { const p = $('#v_msg'); p.innerHTML = ic('warning') + esc(m); p.hidden = false; };
   $('#v_file').addEventListener('change', () => { const f = $('#v_file').files[0]; $('#v_name').textContent = f ? f.name : 'まだ選んでいません'; $('#v_name').classList.toggle('on', !!f); $('#v_msg').hidden = true; });
   if (saved) {
