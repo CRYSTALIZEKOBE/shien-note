@@ -5662,7 +5662,7 @@ function render(){
   if (cmpVer((db.meta || {}).version, APP_VERSION) > 0) html = `<div class="alert hard"><h2>${ic('warning')}ツールを新しい版に入れ替えてください</h2><div class="small">このデータは新しい版（${esc(db.meta.version)}）で保存されています。いま開いているツールは ${esc(verLabel())} です。古い版のまま使うと、新しい機能の記録が正しく表示されないことがあります。共有フォルダにある最新の作業支援ノートのファイルを開き直してください。</div></div>` + html;
   html = placeAlert() + html;
   if (!storageOK) html = `<div class="alert hard"><h2>${ic('warning')}データを保存できない状態です</h2><div class="small">このままページを閉じると内容が消えます。「設定」の「バックアップを保存」でファイルに保存してください。</div></div>` + html;
-  if (APP_VIEWER) html += `<p class="notice noprint">${ic('shield')}<span><span class="sent">閲覧専用です。閉じると、記録は画面から消えます。</span></span></p>`;
+  if (APP_VIEWER) html += `<p class="notice noprint">${ic('shield')}<span><span class="sent">閲覧専用です。ロックすると、記録は画面から消えます。</span></span></p>`;
   else html += `<p class="notice noprint">${ic('shield')}<span>${(sync.handle ? ['データはこのパソコンのブラウザと共有ファイルに保存されます。', crypt.on ? '共有ファイルは暗号化されたまま、<span class="nw">Google ドライブ</span>などでほかのパソコンに届きます。' : '共有ファイルは、<span class="nw">Google ドライブ</span>などでほかのパソコンに届きます。'] : ['データはこのパソコンのブラウザに保存され、外部には送信しません。']).map(t => `<span class="sent">${t}</span>`).join('')}<span class="sent">${crypt.on ? '暗号化：オン' : '暗号化：オフ'}</span></span></p>`;
   $('#app').innerHTML = html;
   labelTables($('#app'));
@@ -6142,7 +6142,9 @@ const vSave = v => vdb('readwrite', s => s.put(v, 'last')).catch(() => {});
 const vForget = () => vdb('readwrite', s => s.delete('last')).catch(() => {});
 const vTime = t => { const d = new Date(t); return `${md(ymd(d))} ${hhmm(d)}`; };
 function viewerBanner(){
-  return `<div class="alert info small noprint row" style="gap:8px 12px"><span style="flex:1;min-width:200px"><b>${ic('lock')}閲覧専用です。</b>${vFile ? `<span class="nw">ファイルの日時：${vTime(vFile.time)}</span>。` : ''}別のアプリに切り替えるか、5分操作しないと閉じます。</span><button class="btn small" data-act="viewerClose">閉じる</button></div>`;
+  return `<div class="alert info small noprint" style="padding:14px 16px">
+    <div class="row" style="justify-content:space-between;gap:8px 12px"><b>${ic('lock')}閲覧専用です</b><button class="btn small" data-act="viewerClose" title="記録を画面から消して、パスワードの画面に戻ります">${ic('lock')}ロック</button></div>
+    <div style="margin-top:8px;line-height:1.7">${vFile ? `<div>ファイルの日時：<span class="nw">${vTime(vFile.time)}</span></div>` : ''}<div>別のアプリに切り替えるか、<span class="nw">5分操作しないと</span>ロックします。</div></div></div>`;
 }
 async function viewerOpen(){
   const saved = await vLoad();
