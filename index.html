@@ -399,6 +399,10 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .dayb .ic{width:15px;height:15px}
 /* 今日来る予定の人：1人1枚のカード（左の色＝声掛け） */
 .tgrid{display:flex;flex-direction:column;gap:10px}
+.tg-h{display:flex;align-items:center;gap:12px;font-size:13px;font-weight:700;color:var(--muted);margin:22px 0 2px}
+.tg-h:first-child{margin-top:0}
+.tg-h::after{content:'';flex:1;height:1px;background:var(--line)}
+.tg-h .n{font-weight:400}
 .tcard{border:1px solid var(--line);border-left:6px solid var(--line);border-radius:12px;background:var(--surface);padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
 .tcard:hover{border-top-color:var(--accent);border-right-color:var(--accent);border-bottom-color:var(--accent)}
 .tcard.v-hard{border-left-color:var(--hard)}
@@ -475,7 +479,7 @@ div.docimg{padding:18px;text-align:center}
 .twork+.twork{border-top:1px solid var(--line);margin-top:2px;padding-top:6px}
 .tw-main{flex:1;min-width:0}
 .tw-main .stale{margin-left:8px}
-.bp-row{display:grid;grid-template-columns:minmax(8em,1fr) 11em minmax(0,1.6fr);gap:6px 10px;align-items:center;padding:6px 0}
+.bp-row{display:grid;grid-template-columns:minmax(8em,1fr) 11em minmax(0,1.6fr);gap:10px 12px;align-items:center;padding:12px 0}
 .bp-row+.bp-row{border-top:1px solid var(--line)}
 .dr-items{display:flex;flex-wrap:wrap;gap:6px 14px}
 .pwwrap{position:relative;display:block}
@@ -508,9 +512,13 @@ div.docimg{padding:18px;text-align:center}
 .tasktable input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
 .bp-name{display:flex;flex-direction:column;line-height:1.35}
 .bp-time{display:grid;grid-template-columns:6.5em 1fr;gap:6px}
-.bp-row:not(:has(option[value="late"]:checked,option[value="early"]:checked)) .bp-time{visibility:hidden}
-@media (max-width:640px){.bp-row{grid-template-columns:1fr 1fr}.bp-time{grid-column:1/-1}.bp-row:not(:has(option[value="late"]:checked,option[value="early"]:checked)) .bp-time{display:none}}
-#mform:not(:has([name="plan"][value="late"]:checked,[name="plan"][value="early"]:checked)) .late-f{display:none}
+.bp-row:not(:has(option[value="late"]:checked,option[value="early"]:checked,option[value="off"]:checked,option[value="wait"]:checked)) .bp-time{visibility:hidden}
+.bp-row:has(option[value="off"]:checked,option[value="wait"]:checked) .bp-time select{display:none}
+.bp-row:has(option[value="off"]:checked,option[value="wait"]:checked) .bp-time input{grid-column:1/-1}
+@media (max-width:640px){.bp-row{grid-template-columns:1fr 1fr}.bp-time{grid-column:1/-1}.bp-row:not(:has(option[value="late"]:checked,option[value="early"]:checked,option[value="off"]:checked,option[value="wait"]:checked)) .bp-time{display:none}}
+#mform:not(:has([name="plan"][value="late"]:checked,[name="plan"][value="early"]:checked,[name="plan"][value="off"]:checked,[name="plan"][value="wait"]:checked)) .late-f{display:none}
+#mform:has([name="plan"][value="off"]:checked,[name="plan"][value="wait"]:checked) .late-f{grid-template-columns:1fr}
+#mform:has([name="plan"][value="off"]:checked,[name="plan"][value="wait"]:checked) .late-t{display:none}
 #mform:not(:has([name="lp_range"][value="custom"]:checked)) .lp-dates{display:none}
 #mform:has([name="plan"][value="early"]:checked) .when-late{display:none}
 #mform:not(:has([name="plan"][value="early"]:checked)) .when-early{display:none}
@@ -532,6 +540,12 @@ div.docimg{padding:18px;text-align:center}
 .offname .linkbtn,.offname>b{white-space:nowrap}
 .offname .dayb{border:0;background:var(--accent-weak);color:var(--accent);border-radius:8px;min-height:30px;padding:3px 10px}
 .offname .dayb:hover{filter:brightness(.96)}
+.offname .why{font-weight:400;font-size:13px;color:var(--muted);white-space:normal;text-align:left}
+.off-list{display:grid;gap:0}
+.off-row{display:grid;grid-template-columns:7.5em 4.5em 1fr;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.off-row:last-child{border-bottom:0}
+.off-row .k{font-weight:700}
+@media (max-width:480px){.off-row{grid-template-columns:auto 1fr}.off-row .t{grid-column:1/-1}}
 .calls{display:inline-flex;gap:4px}
 .callb{white-space:nowrap;border:1px dashed var(--line);background:var(--surface);color:var(--muted);border-radius:8px;padding:3px 9px;font-size:13px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:3px;min-height:30px;font-family:inherit}
 .callb:hover{border-color:var(--accent);color:var(--accent)}
@@ -629,6 +643,17 @@ mark{background:var(--warn-bg);color:inherit;border-radius:3px;padding:0 1px;box
 /* 今日のお知らせ（1行ずつ） */
 .nrow{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border-left:4px solid var(--line);background:var(--surface2)}
 .nrow+.nrow{margin-top:6px}
+.ndrop{display:block;padding:0}
+.ndrop>summary{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;list-style:none;font-size:14px}
+.ndrop>summary::-webkit-details-marker{display:none}
+.ndrop>summary::after{content:'';margin-left:auto;width:7px;height:7px;border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);transform:rotate(45deg);transition:transform .15s}
+.ndrop[open]>summary::after{transform:rotate(-135deg)}
+.ndrop>summary>.ic{color:var(--muted)}
+.ndrop.s1>summary>.ic{color:var(--warn)}
+.ndrop-b{padding:2px 12px 10px 38px}
+.ndrop-r{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 0;font-size:14px}
+.ndrop-r+.ndrop-r{border-top:1px solid var(--line)}
+.ndrop-r .linkbtn{font-weight:700}
 .nrow>.ic{color:var(--muted)}
 .nrow.s0{background:var(--hard-bg);border-left-color:var(--hard)}
 .nrow.s0>.ic{color:var(--hard)}
@@ -874,6 +899,7 @@ button.cal-cell:hover{background:var(--surface2)}
   .tpt th{text-align:left}
   .tpt tr{break-inside:avoid}
   .tpt-sum{margin:0 0 6px;font-weight:700}
+  .tpt td.tpt-g{font-weight:700;padding-top:8px;border-left:0;border-right:0}
   .tpt .small{font-size:8pt;color:#333;margin-top:2px}
   /* 手順書：1ページに1手順 */
   body.print-steps .gsteps li{break-after:page;font-size:28pt;border:0;min-height:70vh;align-items:center}
@@ -970,6 +996,7 @@ const ICONS = {
   copy: 'M8 2h11a1 1 0 0 1 1 1v13h-2V4H8zM4 6h11a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1z',
   key: { eo:1, d:'M8 7a5 5 0 1 1 4.6 7H12v2h-2v2H8v2H4v-4l4.4-4.4A5 5 0 0 1 8 7zM15 6a2 2 0 1 0 0 4a2 2 0 1 0 0-4z' },
   home: 'M12 3l9 8h-3v9h-5v-6h-2v6H6v-9H3z',
+  clock: { eo:1, d:'M12 2a10 10 0 1 1 0 20a10 10 0 0 1 0-20zm0 2a8 8 0 1 0 0 16a8 8 0 0 0 0-16zM11 7h2v4.6l3.2 2.4-1.2 1.6-4-3z' },
   phone: 'M6.6 10.8a15 15 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25c1.1.37 2.3.57 3.6.57a1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.6a1 1 0 0 1-.25 1z'
 };
 function ic(name, extra = ''){
@@ -985,7 +1012,7 @@ const sec = (name, text, cls = '') => `<h2 class="sec">${icw(name, cls)}${text}<
    ========================================================= */
 const APP_TRIAL = false;   // 体験版を作るときだけ true にする（サンプルで動き、保存しない）
 const APP_VIEWER = true;  // スマホ閲覧版を作るときだけ true にする（暗号化した共有ファイルを開いて見るだけ。何も保存しない）
-const VIEW_OK = new Set(['nav', 'sub', 'goMode', 'openUserTab', 'openUser', 'openHit', 'backCal', 'calDay', 'calMove', 'userRecords', 'changes', 'searchFrom', 'jump', 'helpToggle', 'compare', 'listComplaints', 'listTroubles', 'openComplaint', 'openGuide', 'eqDay', 'theme', 'zoom', 'viewerClose']);
+const VIEW_OK = new Set(['nav', 'sub', 'goMode', 'openUserTab', 'openUser', 'openHit', 'backCal', 'calDay', 'calMove', 'userRecords', 'changes', 'searchFrom', 'jump', 'helpToggle', 'compare', 'listComplaints', 'listTroubles', 'openComplaint', 'absentList', 'openGuide', 'eqDay', 'theme', 'zoom', 'viewerClose']);
 const KEY = APP_TRIAL ? 'shienNoteTrial.v1' : APP_VIEWER ? 'shienNoteView.v1' : 'shienNote.v1';
 // ツールの版。直したら APP_VERSION と APP_DATE を更新する（正式版にするときは 1.0.0 にして APP_STAGE を空にする）
 const APP_VERSION = '1.0.0';
@@ -2184,7 +2211,7 @@ function viewToday(){
       </div>
     ${feat('equip') ? `<p class="small noprint" style="margin:-4px 0 14px"><button class="linkbtn small" data-act="goMode" data-v="equip">${ic('monitor')}席・機材の割り当てへ</button></p>` : ''}
     ${attnBox(coming, homeToday, offToday)}
-    ${coming.length ? todayPrintTable(coming, eqToday) + `<div class="tgrid noprint">${coming.map(u => {
+    ${coming.length ? todayPrintTable(coming, eqToday) + `<div class="tgrid noprint">${halfGroups(coming).map(([t, us]) => `<div class="tg-h">${t}<span class="n">${us.length}名</span></div>` + us.map(u => {
         const ws = worksOf(u.id).filter(w => w.status === 'doing' || w.status === 'plan');
         const mine = eqToday(u.id), plan = todayPlan(u);
         const traits = u.voiceTraits || [], methods = u.voiceMethods || [];
@@ -2198,15 +2225,29 @@ function viewToday(){
               return `<div class="twork"><div class="tw-main"><b>${esc(w.title)}</b>${staleMark(w)}${l && l.next ? `<div class="next">${ic('arrow')}<span>次：${esc(l.next)}</span></div>` : ''}</div><button class="btn small noprint" data-act="addLog" data-id="${w.id}">${ic('pencil')}記録</button></div>`; }).join('') : '<span class="muted small">取り組み中の作品はありません</span>'}</div>
           </div>
         </div>`;
-      }).join('')}</div>` : `<p class="muted" style="margin:0">今日（${WDN[d]}曜日）に通所する予定の人はいません。</p>`}
+      }).join('')).join('')}</div>` : `<p class="muted" style="margin:0">今日（${WDN[d]}曜日）に通所する予定の人はいません。</p>`}
     ${homeToday.length ? `<div class="offbox"><b>${ic("home")}今日在宅の人（${homeToday.length}名）</b><div class="row" style="gap:8px;margin-top:6px">${homeToday.map(u => `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${todayHome(u) !== 'all' ? `<span class="small muted">${todayHome(u) === 'am' ? '午前' : '午後'}</span>` : ''}${phoneBadge(u)}${homeOK(u) ? '' : homeBadge(u) || `<span class="badge hard">${ic("home")}在宅の申請なし</span>`}${callChecks(u)}${homeEndBtn(u)}</span>`).join("")}</div></div>` : ""}
-    ${offToday.length ? `<div class="offbox"><b>${ic("calendar")}今日お休みの人（${offToday.length}名）</b><div class="row" style="gap:8px;margin-top:6px">${offToday.map(u => `<span class="offname">${esc(u.name)}${phoneBadge(u)}<button class="btn small noprint dayb" data-act="dayReset" data-id="${u.id}" title="お休みを取り消して、今日来る予定に戻します">${ic("back")}元に戻す</button></span>`).join("")}</div></div>` : ""}
+    ${offToday.length ? `<div class="offbox"><b>${ic("calendar")}今日お休みの人（${offToday.length}名）</b><div class="row" style="gap:8px;margin-top:6px">${offToday.map(u => { const why = (planOf(u.id) || {}).note || ''; return `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}<button type="button" class="linkbtn why noprint" data-act="dayChange" data-id="${u.id}" title="お休みの理由を入れる・直す">${why ? esc(why) : '理由を入れる'}</button>${why ? `<span class="why print-only">${esc(why)}</span>` : ''}<button class="btn small noprint dayb" data-act="dayReset" data-id="${u.id}" title="お休みを取り消して、今日来る予定に戻します">${ic("back")}元に戻す</button></span>`; }).join("")}</div></div>` : ""}
     ${noDays.length ? `<p class="small muted" style="margin:10px 0 0">${ic('warning')} 通所曜日が未設定の利用者が${noDays.length}名います（${noDays.map(u => esc(u.name)).join('、')}）。各利用者の「名前・週の予定を編集」で設定すると、ここに表示されます。</p>` : ''}
   </div>`;
   if (feat('lunch')) html += lunchCard(coming);
 
   return html;
 }
+// お知らせの上の折りたたみ：まだ来ていない人（遅刻かお休みかが分かるまで）と、午後から通所の人
+const openDrops = new Set();
+document.addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.drop; if (k) { if (e.target.open) openDrops.add(k); else openDrops.delete(k); } }, true);
+function todayDrops(){
+  const us = live('users').filter(u => !u.archived).sort(byKana);
+  const waits = us.filter(u => (planOf(u.id) || {}).mode === 'wait');
+  const pms = us.filter(u => comesToday(u, 'pm') && !comesToday(u, 'am'));
+  const drop = (key, cls, icon, title, list, line) => list.length ? `<details class="nrow ndrop ${cls}"${openDrops.has(key) ? ' open' : ''} data-drop="${key}"><summary>${ic(icon)}<b>${title}</b><span class="muted">${list.length}名</span></summary><div class="ndrop-b">${list.map(line).join('')}</div></details>` : '';
+  const late = new Date().getHours() >= 12;
+  return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || ''; return `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${why ? `<span class="small muted">${esc(why)}</span>` : ''}<span class="spacer"></span><span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></div>`; })
+    + drop('pm', '', 'calendar', '午後から通所', pms, u => `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</div>`);
+}
+// 今日来る人を「午前から」「午後から」に分ける（人がいない方は出さない）
+const halfGroups = coming => [['午前から', coming.filter(u => comesToday(u, 'am'))], ['午後から', coming.filter(u => !comesToday(u, 'am'))]].filter(([, us]) => us.length);
 // 今日の通所：午前から・午後から・在宅・お休みの人数
 function attnBox(coming, homeToday, offToday){
   const am = coming.filter(u => comesToday(u, 'am')).length, pm = coming.filter(u => !comesToday(u, 'am') && comesToday(u, 'pm')).length;
@@ -2218,13 +2259,15 @@ function attnBox(coming, homeToday, offToday){
 function todayPrintTable(coming, eqToday){
   const L = feat('lunch');
   const n = k => coming.filter(u => lunchOf(u.id) === k).length;
-  const rows = coming.map(u => {
+  const row = u => {
     const plan = todayPlan(u);
     const seats = feat('equip') ? eqToday(u.id).map(x => esc(x.e.name) + (x.half ? `（${HALF_T[x.half]}）` : '')).join('・') : '';
     const ws = worksOf(u.id).filter(w => w.status === 'doing' || w.status === 'plan').map(w => esc(w.title)).join('<br>');
     const note = [u.allergy ? `<b>アレルギー：${esc(u.allergy)}</b>` : '', u.dislike ? `苦手：${esc(u.dislike)}` : '', u.voice === 'hard' || u.voice === 'some' ? VOICE[u.voice].label : ''].filter(Boolean).join('<br>');
     return `<tr><td><b>${esc(u.name)}</b>${u.mainStaff ? `<div class="small">担当：${esc(u.mainStaff)}</div>` : ''}</td><td>${[plan.text, seats].filter(Boolean).join('<br>') || '－'}</td><td>${ws || '－'}</td>${L ? `<td>${{ yes: 'いる', no: 'いらない' }[lunchOf(u.id)] || '未確認'}</td>` : ''}<td>${note || '－'}</td></tr>`;
-  }).join('');
+  };
+  const cols = L ? 5 : 4;
+  const rows = halfGroups(coming).map(([t, us]) => `<tr><td class="tpt-g" colspan="${cols}">${t}</td></tr>` + us.map(row).join('')).join('');
   return `<div class="print-only">${L ? `<p class="tpt-sum">お弁当：いる ${n('yes')}　いらない ${n('no')}${n('') ? `　未確認 ${n('')}` : ''}</p>` : ''}
     <table class="ptable tpt"><thead><tr><th>名前</th><th>予定・席</th><th>取り組み中の作品</th>${L ? '<th>お弁当</th>' : ''}<th>注意</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -2264,10 +2307,10 @@ function noticeCard(due, plans, stale){
   // お休みが増えている人（「予定を変える」で入れたお休みを数える）
   absentUsers().forEach(({ u, n }) => N.push({ sev: 1, icon: 'calendar', print: true,
     html: `<b>${esc(u.name)}</b><span class="small muted">お休みが増えています（直近${ABSENT_DAYS}日で${n}回）</span>`,
-    act: btn('openUserTab', `data-tab="meet" data-id="${u.id}"`, '開く') }));
+    act: btn('absentList', `data-id="${u.id}"`, '理由を見る') }));
   [['late', '遅刻'], ['early', '早退']].forEach(([mode, t]) => absentUsers(mode).forEach(({ u, n }) => N.push({ sev: 1, icon: 'calendar', print: true,
     html: `<b>${esc(u.name)}</b><span class="small muted">${t}が増えています（直近${ABSENT_DAYS}日で${n}回）</span>`,
-    act: btn('openUserTab', `data-tab="meet" data-id="${u.id}"`, '開く') })));
+    act: btn('absentList', `data-id="${u.id}"`, '理由を見る') })));
   // 保存する年数を過ぎた、利用終了の人の記録
   const oldRetired = retiredUsers().filter(retireDue);
   if (oldRetired.length) N.push({ sev: 2, icon: 'users', print: false,
@@ -2307,14 +2350,15 @@ function noticeCard(due, plans, stale){
   if (!APP_VIEWER && bdays >= BACKUP_DAYS && !(snooze && snooze >= today())) N.push({ sev: 2, icon: 'shield',
     html: `<span>${last ? `前回のバックアップ（ファイル）から${bdays}日たっています` : 'まだバックアップをファイルに保存していません'}</span>`,
     act: btn('export', '', ic('download') + '今すぐ保存') + btn('backupSnooze', '', 'あとで', 'ghost') });
-  if (!N.length) return '';
+  const drops = todayDrops();
+  if (!N.length && !drops) return '';
   N.sort((a, b) => a.sev - b.sev);
   const row = x => `<div class="nrow s${x.sev}${x.print ? '' : ' noprint'}">${ic(x.icon)}<span class="ntext">${x.html}</span><span class="nact noprint">${x.act}</span></div>`;
   const urgent = N.filter(x => x.sev === 0).length;
   const shown = N.slice(0, Math.max(NOTICE_SHOW, urgent)), rest = N.slice(shown.length);
   return `<div class="card notices${N.some(x => x.print) ? '' : ' noprint'}" style="margin-bottom:14px">
-    <div class="card-head" style="margin-bottom:10px">${sec('flag', `お知らせ<span class="noprint">（${N.length}件）</span>`, urgent ? 'hard' : '')}</div>
-    ${shown.map(row).join('')}
+    <div class="card-head" style="margin-bottom:10px">${sec('flag', `お知らせ<span class="noprint">${N.length ? `（${N.length}件）` : ''}</span>`, urgent ? 'hard' : '')}</div>
+    ${drops}${shown.map(row).join('')}
     ${rest.length ? `<details class="more" style="margin-top:8px"><summary>ほかに${rest.length}件</summary><div style="margin-top:6px">${rest.map(row).join('')}</div></details>` : ''}
   </div>`;
 }
@@ -2341,6 +2385,18 @@ function absentUsers(mode = 'off'){
   const since = addDays(-ABSENT_DAYS + 1);
   const offs = live('dayplan').filter(p => p.mode === mode && p.date >= since && p.date <= today());
   return live('users').filter(u => !u.archived).map(u => ({ u, n: offs.filter(p => p.userId === u.id).length })).filter(x => x.n >= ABSENT_MIN);
+}
+// お休み・遅刻・早退の記録：その人の分を新しい順に
+const ABSENT_KIND = { off: 'お休み', late: '遅刻', early: '早退' };
+const absentsOf = (uid0, since) => live('dayplan').filter(p => p.userId === uid0 && ABSENT_KIND[p.mode] && p.date <= today() && (!since || p.date >= since)).sort((a, b) => b.date.localeCompare(a.date));
+function absentList(uid0){
+  const u = userById(uid0); if (!u) return;
+  const list = absentsOf(uid0);
+  const n = k => absentsOf(uid0, addDays(-29)).filter(p => p.mode === k).length;
+  const sum = Object.keys(ABSENT_KIND).map(k => `<span>${ABSENT_KIND[k]}<b>${n(k)}</b></span>`).join('');
+  const row = p => `<div class="off-row"><span>${fmtDay(p.date)}</span><span class="k">${ABSENT_KIND[p.mode]}${p.at ? ' <span class="small muted">' + esc(p.at) + '</span>' : ''}</span><span class="t">${p.note ? esc(p.note) : '<span class="muted">理由なし</span>'}</span></div>`;
+  openModal(`${esc(u.name)}さんのお休み・遅刻・早退`, `<div class="lunch-sum" style="padding-bottom:16px;margin-bottom:4px;border-bottom:1px solid var(--line)"><span class="muted">直近30日</span>${sum}</div>
+    ${list.length ? `<div class="off-list">${list.slice(0, 60).map(row).join('')}</div>` : '<p class="muted" style="margin:0">まだ記録はありません。</p>'}`, null);
 }
 // 在宅の日の連絡（1日2回）：押すと時刻と職員を残す
 const HOME_CALLS = 2;
@@ -2377,6 +2433,7 @@ function todayPlan(u){
   if (own && p.mode === 'extra') parts.push(`<b class="tplan">${comesOn(u, new Date().getDay()) ? '終日通所（今日だけ）' : '今日だけ通所'}</b>`);
   else if (own && p.mode === 'part') parts.push(`<b class="tplan">${p.part === 'am' ? '午前だけ通所' : '午後から通所'}（今日だけ）</b>`);
   else if (own && (p.mode === 'late' || p.mode === 'early')) parts.push(`<b class="tplan">${p.mode === 'late' ? '遅刻' : '早退'}${p.at ? '（' + esc(p.at) + '）' : ''}</b>${p.note ? '：' + esc(p.note) : ''}`);
+  else if (own && p.mode === 'wait') parts.push(`<b class="tplan warn-t">まだ来ていない</b>${p.note ? '：' + esc(p.note) : ''}`);
   else if (own && p.mode === 'home') parts.push(`<b class="tplan">${half}（今日だけ）</b>`);
   else if (half) parts.push(half);
   if (u.attendNote) parts.push(esc(u.attendNote));
@@ -2409,6 +2466,7 @@ function putPlan(uid0, mode, part, extra){
 function putPlanValue(uid0, v, at, note){
   if (!v) putPlan(uid0, null);
   else if (v === 'late' || v === 'early') putPlan(uid0, v, null, { at: at || '', note: note || '' });
+  else if (v === 'off' || v === 'wait') putPlan(uid0, v, null, { note: note || '' });
   else if (v.startsWith('part')) putPlan(uid0, 'part', null, { part: v.slice(5) });
   else if (v.startsWith('home')) putPlan(uid0, 'home', v.slice(5));
   else putPlan(uid0, v);
@@ -2417,7 +2475,7 @@ function putPlanValue(uid0, v, at, note){
 const planValue = u => { const p = planOf(u.id); if (!p || p.weekly) return ''; return p.mode === 'home' ? 'home_' + (p.part || 'all') : p.mode === 'part' ? 'part_' + p.part : p.mode; };
 function planOptions(u){
   const w = weekSlots(u, new Date().getDay()), full = isOffice(w, 'am') && isOffice(w, 'pm');
-  return [['late', '遅刻'], ['early', '早退'], ['part_am', '午前だけ通所'], ['part_pm', '午後から通所'], ...(full ? [] : [['extra', '終日通所']]), ['off', 'お休み'], ['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後だけ在宅']];
+  return [['wait', 'まだ来ていない'], ['late', '遅刻'], ['early', '早退'], ['part_am', '午前だけ通所'], ['part_pm', '午後から通所'], ...(full ? [] : [['extra', '終日通所']]), ['off', 'お休み'], ['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後だけ在宅']];
 }
 // 今日の予定をまとめて変える（いつも来る人は1行ずつ、いつもは来ない人は「今日だけ来る人」から選ぶ）
 function bulkPlan(){
@@ -2438,7 +2496,7 @@ function bulkPlan(){
       const v = fd.get('p_' + u.id) || '', p = planOf(u.id) || {};
       const at = fd.get('t_' + u.id) || '', note = String(fd.get('n_' + u.id) || '').trim();
       const timed = v === 'late' || v === 'early';
-      if (v === planValue(u) && (!timed || (p.at === at && (p.note || '') === note))) return;
+      if (v === planValue(u) && (v === 'off' || v === 'wait' ? (p.note || '') === note : !timed || (p.at === at && (p.note || '') === note))) return;
       changes.push([u, v, at, note]);
     });
     const ex = new Set(fd.getAll('extra'));
@@ -2660,6 +2718,7 @@ function viewDetail(){
           <div class="row" style="gap:8px 14px"><h1>${esc(u.name)}</h1>${u.archived ? '<span class="badge mute">利用終了</span>' : ''}${editBtn('editUser', `data-id="${u.id}" data-part="basic"`, '名前・週の予定を編集')}</div>
           ${u.allergy ? `<div style="margin-top:10px">${allergyBadge(u)}</div>` : ''}
           <div class="row small uh-days" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b>通所</b>${daysChips(u)}${u.attendNote ? `<span class="muted">${esc(u.attendNote)}</span>` : ''}${!userDays(u).length ? '<span class="muted">曜日 未設定</span>' : ''}${homeBadge(u)}</div>
+          ${(() => { const a = absentsOf(u.id, addDays(-29)); if (!absentsOf(u.id).length) return ''; const c = k => a.filter(p => p.mode === k).length; const t = Object.keys(ABSENT_KIND).filter(c).map(k => ABSENT_KIND[k] + ' ' + c(k) + '回').join('・'); return `<div class="row small" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b>お休み・遅刻</b><span class="muted">直近30日</span><span>${t || 'なし'}</span><button type="button" class="linkbtn small noprint" data-act="absentList" data-id="${u.id}">記録を見る</button></div>`; })()}
           <div class="small" style="margin-top:10px">${mainStaffLine(u)}</div>
           <div class="small muted" style="margin-top:6px">${u.updatedAt ? '最終更新：' + stamp(u.updatedAt, u.updatedBy) : ''}</div>
         </div>
@@ -4848,8 +4907,9 @@ function dailyText(date, who, cfg){
     }
     if (R.nameFmt === 'initial' && !initialOf(u)) noKana.push(u.name);
     const late = p && (p.mode === 'late' || p.mode === 'early') ? '（' + (p.mode === 'late' ? '遅刻' : '早退') + (p.at ? ' ' + p.at : '') + (p.note ? '・' + p.note : '') + '）' : '';
+    const waitT = p && p.mode === 'wait' ? '（まだ来ていない）' : '';
     const partT = p && p.mode === 'part' ? (p.part === 'am' ? '（午前だけ通所）' : '（午後から通所）') : '';
-    const head = `${nm(u)}${R.honor}${part ? '（' + HOME_PART[part] + (calls.length ? '・連絡 ' + calls.map(c => c.t).join('／') : '') + '）' : ''}${late}${partT}`;
+    const head = `${nm(u)}${R.honor}${part ? '（' + HOME_PART[part] + (calls.length ? '・連絡 ' + calls.map(c => c.t).join('／') : '') + '）' : ''}${late}${waitT}${partT}`;
     const L = [];
     if (I.work) {
       logs.forEach(({ w, l }) => { if (l.text) L.push(`${Lb.work}：${w.title}　${oneLine(l.text)}`); });
@@ -4863,7 +4923,7 @@ function dailyText(date, who, cfg){
     blocks.push(R.wrap === 'markdown' ? `**${head}**\n${L.map(x => '- ' + x).join('\n')}` : `■ ${head}\n${L.join('\n')}`);
   });
   if (!who && I.off) {
-    const off = live('dayplan').filter(x => x.date === date && x.mode === 'off').map(x => userById(x.userId)).filter(Boolean).map(nm);
+    const off = live('dayplan').filter(x => x.date === date && x.mode === 'off').map(x => [userById(x.userId), x.note]).filter(([u]) => u).map(([u, why]) => nm(u) + (why ? '（' + why + '）' : ''));
     if (off.length) blocks.push((R.wrap === 'markdown' ? '**お休み**：' : 'お休み：') + off.join('、'));
   }
   const title = [R.title || '利用者対応', R.titleDate ? md(date) : ''].filter(Boolean).join(' ') + (R.titleStaff && who ? '（' + who + '）' : '');
@@ -5831,20 +5891,33 @@ const actions = {
     const timeOpts = [['late', '遅刻'], ['early', '早退'], ['part_am', '午前だけ通所'], ['part_pm', '午後から通所'], ...(full ? [] : [['extra', '終日通所']])];
     const restOpts = [['off', 'お休み'], ['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後だけ在宅']];
     const opts = [...timeOpts, ...restOpts];
-    openModal(`${esc(u.name)}さんの今日の予定`, `<div class="field"><label class="f">時間を変える</label>${chipRadios('plan', timeOpts, '')}</div>
-      <div class="field"><label class="f">お休み・在宅</label>${chipRadios('plan', restOpts, '')}</div>
-      <div class="grid2 late-f" style="gap:0 14px"><div class="field" style="margin-bottom:0"><label class="f" for="late_at"><span class="when-late">来た時刻</span><span class="when-early">帰る時刻</span></label>${timeSelect('late_at', 'lateAt', nowRounded())}</div>
-        <div class="field" style="margin-bottom:0"><label class="f" for="late_note">理由など</label><input type="text" id="late_note" name="lateNote" placeholder="例：電車の遅れ・通院・体調不良"></div></div>`, fd => {
+    const prev = planOf(u.id) ? clone(planOf(u.id)) : null, p0 = prev && prev.mode !== 'wait' ? prev : {}, cur = el.dataset.v || planValue(u);
+    openModal(`${esc(u.name)}さんの今日の予定`, `<div class="field"><label class="f">朝の確認</label>${chipRadios('plan', [['wait', 'まだ来ていない']], cur)}</div>
+      <div class="field"><label class="f">時間を変える</label>${chipRadios('plan', timeOpts, cur)}</div>
+      <div class="field"><label class="f">お休み・在宅</label>${chipRadios('plan', restOpts, cur)}</div>
+      <div class="grid2 late-f" style="gap:0 14px"><div class="field late-t" style="margin-bottom:0"><label class="f" for="late_at"><span class="when-late">来た時刻</span><span class="when-early">帰る時刻</span></label>${timeSelect('late_at', 'lateAt', p0.at || nowRounded())}</div>
+        <div class="field" style="margin-bottom:0"><label class="f" for="late_note">理由など</label><input type="text" id="late_note" name="lateNote" value="${esc(p0.note || '')}" placeholder="例：体調不良・通院・電車の遅れ"></div></div>`, fd => {
       const v = fd.get('plan');
       if (!v) { alert('変える内容を選んでください。'); return false; }
       if (v.startsWith('home') && !homeOK(u) && !confirm(`${u.name}さんは${homeWhy(u)}。今日は在宅にしますか？`)) return false;
       setTimeout(() => {
         if (v === 'late' || v === 'early') setDayPlan(u.id, v, null, { at: fd.get('lateAt') || '', note: String(fd.get('lateNote') || '').trim() });
         else if (v.startsWith('part')) setDayPlan(u.id, 'part', null, { part: v.slice(5) });
-        else if (v === 'off' || v === 'extra') setDayPlan(u.id, v); else setDayPlan(u.id, 'home', v.slice(5));
-        showUndo(`${u.name}さんを今日は${opts.find(o => o[0] === v)[1]}にしました`, () => setDayPlan(u.id, null));
+        else if (v === 'off' || v === 'wait') setDayPlan(u.id, v, null, { note: String(fd.get('lateNote') || '').trim() });
+        else if (v === 'extra') setDayPlan(u.id, v); else setDayPlan(u.id, 'home', v.slice(5));
+        showUndo(v === 'wait' ? `${u.name}さんを「まだ来ていない」にしました` : `${u.name}さんを今日は${opts.find(o => o[0] === v)[1]}にしました`, () => prev ? setDayPlan(u.id, prev.mode, prev.part, { ...prev }) : setDayPlan(u.id, null));
       }, 0);
     });
+    const focusNote = () => { const v = (document.querySelector('#mform [name="plan"]:checked') || {}).value; if (['off', 'wait', 'late', 'early'].includes(v)) { const n = $('#late_note'); if (n) n.focus(); } };
+    focusNote();
+    $('#mform').addEventListener('change', e => { if (e.target.name === 'plan') focusNote(); });
+  },
+  absentList: el => absentList(el.dataset.id),
+  waitCome: el => {
+    const u = userById(el.dataset.id), p = planOf(el.dataset.id); if (!u) return;
+    const prev = p ? clone(p) : null, at = nowRounded();
+    setDayPlan(u.id, 'late', null, { at, note: '' });
+    showUndo(`${u.name}さんを通所にしました（遅刻 ${at}）`, () => prev ? setDayPlan(u.id, prev.mode, prev.part, { ...prev }) : setDayPlan(u.id, null));
   },
   dayCome: el => { const u = userById(el.dataset.id); if (!u) return; setDayPlan(u.id, 'extra'); showUndo(`${u.name}さんは今日は通所にしました`, () => setDayPlan(u.id, null)); },
   lunchSet: el => {
