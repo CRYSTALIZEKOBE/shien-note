@@ -237,7 +237,10 @@ details[open]>summary [data-chev]{transform:rotate(90deg)}
 .abar .b1{background:var(--warn-fill)}
 .checks{list-style:none;margin:0;padding:0 0 10px}
 .checks li{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px dashed var(--line);font-size:14px}
-.checks li .lvt{margin-left:auto;font-size:12px;color:var(--muted);white-space:nowrap}
+.checks li{flex-wrap:wrap;row-gap:2px}
+.checks .ck-t{flex:1 1 13em;min-width:0}
+.checks .ck-m{margin-left:auto;display:flex;align-items:center;gap:6px;white-space:nowrap}
+.checks li .lvt{font-size:12px;color:var(--muted);white-space:nowrap}
 .lvdot{width:20px;height:20px;border-radius:50%;display:grid;place-items:center;flex:none;border:2px solid var(--line)}
 .lvdot.lv1{background:var(--warn-fill);border-color:var(--warn-fill)}
 .lvdot.lv2{background:var(--ok);border-color:var(--ok);color:var(--surface)}
@@ -374,7 +377,9 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .xrow>summary::-webkit-details-marker{display:none}
 .xrow>summary:hover{background:var(--surface2)}
 .xrow[open]>summary{border-bottom:1px solid var(--line);border-radius:12px 12px 0 0}
-.xmain{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.xrow>summary{flex-wrap:wrap}
+.xrow>summary>.btn{margin-left:auto}
+.xmain{flex:1 1 11em;min-width:0;display:flex;flex-direction:column;gap:2px}
 .xsub{font-size:13px;color:var(--muted)}
 .xnext{color:var(--accent);font-weight:700;display:inline-flex;align-items:center;gap:2px}
 .xnext .ic{width:14px;height:14px}
@@ -414,6 +419,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .tc-name b{font-size:17px}
 .tc-sub{font-size:13px;color:var(--muted);margin-top:-2px;display:flex;flex-wrap:wrap;gap:2px 14px}
 .lunch-sum{font-size:14px;color:var(--muted);display:flex;gap:4px 16px;flex-wrap:wrap}
+.lunch-sum>span{white-space:nowrap}
 .lunch-sum b{color:var(--text);font-size:18px;margin-left:4px}
 .lunch-row{display:grid;grid-template-columns:minmax(8em,13em) 1fr auto;grid-template-areas:"nm al seg";align-items:center;gap:6px 16px;padding:10px 0;border-bottom:1px solid var(--line)}
 .lunch-row:last-child{border-bottom:0}
@@ -508,7 +514,7 @@ div.docimg{padding:18px;text-align:center}
 .bw-last{line-height:1.45;min-width:0}
 .bw-last .next{font-size:12px}
 @media (max-width:820px){.bw-row{grid-template-columns:1fr 1fr}.bw-row input{grid-column:1/-1}.bw-last{grid-column:1/-1}}
-.slot.mini{min-height:28px;font-size:12px;border-radius:6px}
+.slot.mini{min-height:28px;font-size:12px;border-radius:6px;white-space:nowrap;letter-spacing:-.02em}
 .tasktable th{font-size:12px;line-height:1.3;word-break:keep-all}
 .tasktable input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
 .bp-name{display:flex;flex-direction:column;line-height:1.35}
@@ -715,7 +721,7 @@ textarea.ptarget{border-color:var(--accent)}
 button.cal-cell:hover{background:var(--surface2)}
 .cal-cell.today{border:2px solid var(--accent);padding:3px 4px}
 .cal-cell.sel{background:var(--accent-weak);box-shadow:0 0 0 2px var(--accent)}
-.cal-d{font-size:13px;font-weight:700;line-height:1.3}
+.cal-d{font-size:13px;font-weight:700;line-height:1.3;white-space:nowrap}
 .cal-ev{font-size:12px;line-height:1.4;padding:0 5px;border-radius:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid}
 .k-log{background:var(--accent-weak);border-color:var(--accent)}
 .k-start{background:var(--surface2);border-color:var(--muted)}
@@ -730,7 +736,7 @@ button.cal-cell:hover{background:var(--surface2)}
 .cal-ym{min-width:7em;text-align:center;font-size:18px}
 .cal-bar{display:flex;align-items:center;gap:12px 16px;flex-wrap:wrap;margin:4px 0 14px}
 .cal-nav{display:inline-flex;align-items:center;gap:8px}
-.cal-who{display:inline-flex;align-items:center;gap:8px;font-weight:700}
+.cal-who{display:inline-flex;align-items:center;gap:8px;font-weight:700;white-space:nowrap}
 .cal-who select{width:auto;min-width:150px}
 .cal-legend{margin:0 0 12px}
 .cal-daylist{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
@@ -1212,6 +1218,10 @@ function phraseBreaks(root){
     for (let i = 1; i < s.length; i++) {
       const a = s[i - 1], b = s[i];
       if (/[、。！？」』）)]/.test(a) && !/[、。！？」』）)]/.test(b)) { cut.push(i); continue; }
+      // お休み・お知らせ・ご家族 など：「お」「ご」のあとでは切らず、前で切る（今日の｜お休み）
+      const pre = c => /[おご]/.test(c), kan = c => /[㐀-鿿]/.test(c || '');
+      if (pre(b) && kan(s[i + 1]) && /[ぁ-ゟ]/.test(a) && !pre(a)) { cut.push(i); continue; }
+      if (pre(a) && kan(b) && !(i > 1 && /[ぁ-ゟ]/.test(s[i - 2]) && !/[をはがにでとのもへや]/.test(s[i - 2]))) continue;
       if (!(/[ぁ-ゟ]/.test(a) && /[ァ-ヺ㐀-鿿A-Za-z0-9「『（(]/.test(b))) continue;
       // 漢字に挟まれた送り仮名1文字（切り替える・取り組み・申し送り など）では切らない。助詞1文字（を・は・が など）なら切る
       let j = i - 1; while (j > 0 && /[ぁ-ゟ]/.test(s[j - 1])) j--;
@@ -2247,7 +2257,7 @@ function todayDrops(){
   const us = live('users').filter(u => !u.archived).sort(byKana);
   const waits = us.filter(u => (planOf(u.id) || {}).mode === 'wait');
   const pms = us.filter(u => comesToday(u, 'pm') && !comesToday(u, 'am'));
-  const drop = (key, cls, icon, title, list, line) => list.length ? `<details class="nrow ndrop ${cls}"${openDrops.has(key) ? ' open' : ''} data-drop="${key}"><summary>${ic(icon)}<b>${title}</b><span class="muted">${list.length}名</span></summary><div class="ndrop-b">${list.map(line).join('')}</div></details>` : '';
+  const drop = (key, cls, icon, title, list, line) => list.length ? `<details class="nrow ndrop ${cls}"${openDrops.has(key) ? ' open' : ''} data-drop="${key}"><summary>${ic(icon)}<b>${title}</b><span class="muted nw">${list.length}名</span></summary><div class="ndrop-b">${list.map(line).join('')}</div></details>` : '';
   const late = new Date().getHours() >= 12;
   return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || ''; return `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${why ? `<span class="small muted">${esc(why)}</span>` : ''}<span class="spacer"></span><span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></div>`; })
     + drop('pm', '', 'calendar', '午後から通所', pms, u => `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</div>`);
@@ -2401,7 +2411,7 @@ function absentList(uid0){
   const n = k => absentsOf(uid0, addDays(-29)).filter(p => p.mode === k).length;
   const sum = Object.keys(ABSENT_KIND).map(k => `<span>${ABSENT_KIND[k]}<b>${n(k)}</b></span>`).join('');
   const row = p => `<div class="off-row"><span>${fmtDay(p.date)}</span><span class="k">${ABSENT_KIND[p.mode]}${p.at ? ' <span class="small muted">' + esc(p.at) + '</span>' : ''}</span><span class="t">${p.note ? esc(p.note) : '<span class="muted">理由なし</span>'}</span></div>`;
-  openModal(`${esc(u.name)}さんのお休み・遅刻・早退`, `<div class="lunch-sum" style="padding-bottom:16px;margin-bottom:4px;border-bottom:1px solid var(--line)"><span class="muted">直近30日</span>${sum}</div>
+  openModal(`${esc(u.name)}さんのお休み・遅刻・早退`, `<div class="lunch-sum" style="padding-bottom:16px;margin-bottom:4px;border-bottom:1px solid var(--line)"><span class="muted" style="flex-basis:100%">直近30日</span>${sum}</div>
     ${list.length ? `<div class="off-list">${list.slice(0, 60).map(row).join('')}</div>` : '<p class="muted" style="margin:0">まだ記録はありません。</p>'}`, null);
 }
 // 在宅の日の連絡（1日2回）：押すと時刻と職員を残す
@@ -2741,7 +2751,7 @@ function viewDetail(){
           <div class="row" style="gap:8px 14px"><h1>${esc(u.name)}</h1>${u.archived ? '<span class="badge mute">利用終了</span>' : ''}${editBtn('editUser', `data-id="${u.id}" data-part="basic"`, '名前・週の予定を編集')}</div>
           ${u.allergy ? `<div style="margin-top:10px">${allergyBadge(u)}</div>` : ''}
           <div class="row small uh-days" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b>通所</b>${daysChips(u)}${u.attendNote ? `<span class="muted">${esc(u.attendNote)}</span>` : ''}${!userDays(u).length ? '<span class="muted">曜日 未設定</span>' : ''}${homeBadge(u)}</div>
-          ${(() => { const a = absentsOf(u.id, addDays(-29)); if (!absentsOf(u.id).length) return ''; const c = k => a.filter(p => p.mode === k).length; const t = Object.keys(ABSENT_KIND).filter(c).map(k => ABSENT_KIND[k] + ' ' + c(k) + '回').join('・'); return `<div class="row small" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b>お休み・遅刻</b><span class="muted">直近30日</span><span>${t || 'なし'}</span><button type="button" class="linkbtn small noprint" data-act="absentList" data-id="${u.id}">記録を見る</button></div>`; })()}
+          ${(() => { const a = absentsOf(u.id, addDays(-29)); if (!absentsOf(u.id).length) return ''; const c = k => a.filter(p => p.mode === k).length; const t = Object.keys(ABSENT_KIND).filter(c).map(k => `<span class="nw">${ABSENT_KIND[k]} ${c(k)}回</span>`).join('・'); return `<div class="row small" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b class="nw">お休み・遅刻</b><span class="muted nw">直近30日</span><span>${t || 'なし'}</span><button type="button" class="linkbtn small noprint" data-act="absentList" data-id="${u.id}">記録を見る</button></div>`; })()}
           <div class="small" style="margin-top:10px">${mainStaffLine(u)}</div>
           <div class="small muted" style="margin-top:6px">${u.updatedAt ? '最終更新：' + stamp(u.updatedAt, u.updatedBy) : ''}</div>
         </div>
@@ -3098,7 +3108,7 @@ function skillsCard(u){
       return `<details class="area" ${c1 + c2 ? 'open' : ''}><summary>${ic('right', 'data-chev')}<span class="area-name">${ic(AREA_ICON[a.id] || 'list')}${esc(a.name)}</span>
         <span class="abar" aria-hidden="true"><i class="b2" style="width:${c2 / n * 100}%"></i><i class="b1" style="width:${c1 / n * 100}%"></i></span>
         <span class="small">ひとりで <b>${c2}</b> / ${a.items.length}</span></summary>
-        <ul class="checks">${a.items.map(i => `<li><span class="lvdot ${LV[v(i)].cls}">${v(i) === 2 ? ic('tick') : ''}</span>${esc(i.label)}${guideLinks(i.id)}<span class="lvt">${LV[v(i)].t}</span></li>`).join('')}</ul></details>`;
+        <ul class="checks">${a.items.map(i => `<li><span class="lvdot ${LV[v(i)].cls}">${v(i) === 2 ? ic('tick') : ''}</span><span class="ck-t">${esc(i.label)}</span><span class="ck-m">${guideLinks(i.id)}<span class="lvt">${LV[v(i)].t}</span></span></li>`).join('')}</ul></details>`;
     }).join('')}
     ${sk.updatedAt ? `<div class="foot">最終更新：${stamp(sk.updatedAt, sk.updatedBy)}</div>` : ''}
   </div>`;
@@ -3278,7 +3288,7 @@ function viewBulkEdit(){
       <div class="card-head">${sec('calendar', '週の予定')}<span class="spacer"></span><span class="small muted">各曜日の上が午前、下が午後。押すと「通所 → 在宅 → －」と切り替わります</span></div>
       <div class="table-wrap"><table class="wktable"><thead><tr><th>利用者</th>${WEEK.map(d => `<th>${WDN[d]}</th>`).join('')}</tr></thead><tbody>
         ${users.map(u => `<tr><td><b>${esc(u.name)}</b></td>${WEEK.map(d => `<td><div class="wkcell">${slot(u, d, 'am')}${slot(u, d, 'pm')}</div></td>`).join('')}</tr>`).join('')}
-      </tbody><tfoot><tr><td class="small muted">通所の人数</td>${WEEK.map(d => `<td class="small"><div>午前 <b>${cnt(d, 'am')}</b></div><div>午後 <b>${cnt(d, 'pm')}</b></div></td>`).join('')}</tr></tfoot></table></div>
+      </tbody><tfoot><tr><td class="small muted">通所の人数</td>${WEEK.map(d => `<td class="small"><div><span class="nw">午前</span> <b>${cnt(d, 'am')}</b></div><div><span class="nw">午後</span> <b>${cnt(d, 'pm')}</b></div></td>`).join('')}</tr></tfoot></table></div>
     </div>
     <div class="card" ${hid('tasks')}>
       <div class="card-head">${sec('work', '現在している作業')}<span class="spacer"></span><span class="small muted">作業の種類は「設定」→「作業の種類」で増やせます</span></div>
@@ -3358,10 +3368,10 @@ function viewStaffSkills(){
     ${filled ? '' : `<div class="alert info small">まだ誰も入力していません。自分の名前を押して、得意な分野と使えるソフトを入れてください。</div>`}
     <div class="legend"><span><b>◎</b> 教えられる</span><span><b>○</b> 使える</span></div>
     <div class="table-wrap"><table class="sktable" style="min-width:${240 + cols.length * 56}px"><colgroup><col style="width:15em">${cols.map(() => '<col>').join('')}</colgroup>
-      <thead><tr><th>職員・得意分野</th>${cols.map(k => `<th class="skcol">${esc(k)}</th>`).join('')}</tr></thead><tbody>
+      <thead><tr><th>職員</th>${cols.map(k => `<th class="skcol">${esc(k)}</th>`).join('')}</tr></thead><tbody>
       ${info.map(({ n, s }) => `<tr class="click" data-act="editStaff" data-v="${esc(n)}" title="${esc(n)}さんの得意分野・ソフトを入力">
         <td><b>${esc(n)}</b>${n === state.me ? ' <span class="badge mute">自分</span>' : ''}
-          ${(s.fields || []).length ? `<div class="small">${s.fields.map(esc).join('、')}</div>` : (!Object.keys(s.soft || {}).length && !s.note ? '<div class="small muted">未入力</div>' : '')}
+          ${!(s.fields || []).length && !Object.keys(s.soft || {}).length && !s.note ? '<div class="small muted">未入力</div>' : ''}
           ${s.note ? `<div class="small muted sknote" title="${esc(s.note)}">${esc(s.note.replace(/\s+/g, ' '))}</div>` : ''}</td>
         ${cols.map(k => { const v = (s.soft || {})[k]; return `<td class="skcell${v === 2 ? ' sk2' : ''}" ${v ? `title="${esc(k)}：${SKILL_MARK[v][1]}"` : ''}>${v ? SKILL_MARK[v][0] : ''}</td>`; }).join('')}
       </tr>`).join('')}
