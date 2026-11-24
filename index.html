@@ -403,6 +403,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .tg-h:first-child{margin-top:0}
 .tg-h::after{content:'';flex:1;height:1px;background:var(--line)}
 .tg-h .n{font-weight:400}
+.offbox .tg-h{margin:14px 0 8px}
 .tcard{border:1px solid var(--line);border-left:6px solid var(--line);border-radius:12px;background:var(--surface);padding:12px 14px;cursor:pointer;display:flex;flex-direction:column;gap:6px}
 .tcard:hover{border-top-color:var(--accent);border-right-color:var(--accent);border-bottom-color:var(--accent)}
 .tcard.v-hard{border-left-color:var(--hard)}
@@ -511,6 +512,7 @@ div.docimg{padding:18px;text-align:center}
 .tasktable th{font-size:12px;line-height:1.3;word-break:keep-all}
 .tasktable input[type=checkbox]{width:20px;height:20px;accent-color:var(--accent);cursor:pointer}
 .bp-name{display:flex;flex-direction:column;line-height:1.35}
+.extra-add{margin:16px 0 0}
 .bp-time{display:grid;grid-template-columns:6.5em 1fr;gap:6px}
 .bp-row:not(:has(option[value="late"]:checked,option[value="early"]:checked,option[value="off"]:checked,option[value="wait"]:checked)) .bp-time{visibility:hidden}
 .bp-row:has(option[value="off"]:checked,option[value="wait"]:checked) .bp-time select{display:none}
@@ -1611,18 +1613,21 @@ function slotLabel(s){
 const comesOn = (u, d) => { const s = weekSlots(u, d); return !!(s.am || s.pm); };
 const userDays = u => WEEK.filter(d => comesOn(u, d));
 const HOME_PART = { all: '在宅', am: '午前在宅', pm: '午後在宅' };
+// 今日だけの在宅：all 終日在宅／ho 午前在宅・午後通所／oh 午前通所・午後在宅／am 午前だけ在宅／pm 午後だけ在宅
+const HOME_SLOTS = { all: { am: 'home', pm: 'home' }, ho: { am: 'home', pm: 'office' }, oh: { am: 'office', pm: 'home' }, am: { am: 'home', pm: '' }, pm: { am: '', pm: 'home' } };
+const HOME_OPTS = [['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後だけ在宅'], ['home_ho', '午前在宅・午後通所'], ['home_oh', '午前通所・午後在宅']];
 // 今日だけの予定（お休み・今日だけ通所・在宅）。その日だけ有効で、出欠の記録ではない
 const planOf = uid => live('dayplan').find(p => p.date === today() && p.userId === uid);
 // その日の午前・午後の予定。今日だけの予定があればそちらを優先する
 function slotsOn(u, date){
   const w = weekSlots(u, parse(date).getDay());
   const p = live('dayplan').find(x => x.date === date && x.userId === u.id);
-  if (!p) return w;
+  if (!p || p.weekly) return w;   // weekly：毎週の在宅の日に、連絡の記録のためだけに作った予定
   if (p.mode === 'off') return { am: '', pm: '' };
   if (p.mode === 'extra') return { am: 'office', pm: 'office' };
   if (p.mode === 'late' || p.mode === 'early') return w.am || w.pm ? w : { am: 'office', pm: 'office' };
   if (p.mode === 'part') return { am: p.part === 'am' ? 'office' : '', pm: p.part === 'pm' ? 'office' : '' };
-  if (p.mode === 'home') { const part = p.part || 'all'; const other = h => w[h] === 'home' ? 'home' : (w[h] ? 'office' : (w.am || w.pm ? '' : 'office')); return part === 'all' ? { am: 'home', pm: 'home' } : part === 'am' ? { am: 'home', pm: other('pm') } : { am: other('am'), pm: 'home' }; }
+  if (p.mode === 'home') return HOME_SLOTS[p.part || 'all'] || HOME_SLOTS.all;
   return w;
 }
 // 在宅の時間帯（'' / 'all' / 'am' / 'pm'）
@@ -2226,7 +2231,8 @@ function viewToday(){
           </div>
         </div>`;
       }).join('')).join('')}</div>` : `<p class="muted" style="margin:0">今日（${WDN[d]}曜日）に通所する予定の人はいません。</p>`}
-    ${homeToday.length ? `<div class="offbox"><b>${ic("home")}今日在宅の人（${homeToday.length}名）</b><div class="row" style="gap:8px;margin-top:6px">${homeToday.map(u => `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${todayHome(u) !== 'all' ? `<span class="small muted">${todayHome(u) === 'am' ? '午前' : '午後'}</span>` : ''}${phoneBadge(u)}${homeOK(u) ? '' : homeBadge(u) || `<span class="badge hard">${ic("home")}在宅の申請なし</span>`}${callChecks(u)}${homeEndBtn(u)}</span>`).join("")}</div></div>` : ""}
+    ${extraCands().length ? `<p class="noprint extra-add"><button type="button" class="linkbtn small" data-act="addExtra">${ic('plus')}今日だけ来る人を追加</button></p>` : ''}
+    ${homeToday.length ? `<div class="offbox"><b>${ic("home")}今日在宅の人（${homeToday.length}名）</b>${[['all', '終日'], ['am', '午前'], ['pm', '午後']].map(([k, t]) => [t, homeToday.filter(u => todayHome(u) === k)]).filter(([, us]) => us.length).map(([t, us]) => `<div class="tg-h">${t}<span class="n">${us.length}名</span></div><div class="row" style="gap:8px">${us.map(u => `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${homeOK(u) ? '' : homeBadge(u) || `<span class="badge hard">${ic("home")}在宅の申請なし</span>`}${callChecks(u)}${homeEndBtn(u)}</span>`).join("")}</div>`).join('')}</div>` : ""}
     ${offToday.length ? `<div class="offbox"><b>${ic("calendar")}今日お休みの人（${offToday.length}名）</b><div class="row" style="gap:8px;margin-top:6px">${offToday.map(u => { const why = (planOf(u.id) || {}).note || ''; return `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}<button type="button" class="linkbtn why noprint" data-act="dayChange" data-id="${u.id}" title="お休みの理由を入れる・直す">${why ? esc(why) : '理由を入れる'}</button>${why ? `<span class="why print-only">${esc(why)}</span>` : ''}<button class="btn small noprint dayb" data-act="dayReset" data-id="${u.id}" title="お休みを取り消して、今日来る予定に戻します">${ic("back")}元に戻す</button></span>`; }).join("")}</div></div>` : ""}
     ${noDays.length ? `<p class="small muted" style="margin:10px 0 0">${ic('warning')} 通所曜日が未設定の利用者が${noDays.length}名います（${noDays.map(u => esc(u.name)).join('、')}）。各利用者の「名前・週の予定を編集」で設定すると、ここに表示されます。</p>` : ''}
   </div>`;
@@ -2415,8 +2421,8 @@ function setHomeCall(uid0, n){
   touch(p); save(); render();
 }
 // 「今日来る予定の人」の名前の下：今日の予定の印と、変えるボタン
-// 今日の時間帯の印（午前のみ・午後のみ・午前は在宅・午後は在宅）。終日通所は空
-const halfText = s => s.am === 'office' && s.pm === 'office' ? '' : s.am === 'office' && !s.pm ? '午前のみ' : s.pm === 'office' && !s.am ? '午後のみ' : s.am === 'home' && s.pm === 'office' ? '午前は在宅' : s.am === 'office' && s.pm === 'home' ? '午後は在宅' : '';
+// 今日の時間帯の印（午前のみ・午後のみ・午前在宅・午後通所・午前通所・午後在宅）。終日通所は空
+const halfText = s => s.am === 'office' && s.pm === 'office' ? '' : s.am === 'office' && !s.pm ? '午前のみ' : s.pm === 'office' && !s.am ? '午後のみ' : s.am === 'home' && s.pm === 'office' ? '午前在宅・午後通所' : s.am === 'office' && s.pm === 'home' ? '午前通所・午後在宅' : '';
 // 今日の予定：カードの2行目の文字と、右上のボタン
 // 時刻は10分きざみの一覧から選ぶ（入力欄に直接打つと、ブラウザによって値が勝手に進むため）
 const nowRounded = () => { const d = new Date(), m = Math.round((d.getHours() * 60 + d.getMinutes()) / 10) * 10; return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
@@ -2436,7 +2442,7 @@ function todayPlan(u){
   else if (own && p.mode === 'wait') parts.push(`<b class="tplan warn-t">まだ来ていない</b>${p.note ? '：' + esc(p.note) : ''}`);
   else if (own && p.mode === 'home') parts.push(`<b class="tplan">${half}（今日だけ）</b>`);
   else if (half) parts.push(half);
-  if (u.attendNote) parts.push(esc(u.attendNote));
+  if (u.attendNote && !(own && (p.mode === 'extra' || p.mode === 'part'))) parts.push(esc(u.attendNote));   // 今日だけの時間を入れた日は、いつもの通所のメモは出さない
   const btn = own ? `<button type="button" class="btn small noprint" data-act="dayReset" data-id="${u.id}">${ic('back')}元に戻す</button>`
     : `<button type="button" class="btn small noprint" data-act="dayChange" data-id="${u.id}">${ic('calendar')}予定を変える</button>`;
   return { text: parts.join('・'), btn };
@@ -2473,9 +2479,26 @@ function putPlanValue(uid0, v, at, note){
 }
 // 今入っている「今日だけの予定」を、選択肢の値で返す（毎週の在宅から作った連絡用の予定は「いつもどおり」）
 const planValue = u => { const p = planOf(u.id); if (!p || p.weekly) return ''; return p.mode === 'home' ? 'home_' + (p.part || 'all') : p.mode === 'part' ? 'part_' + p.part : p.mode; };
+const extraValue = u => { const v = planValue(u); return EXTRA_OPTS.some(o => o[0] === v) ? v : ''; };
 function planOptions(u){
   const w = weekSlots(u, new Date().getDay()), full = isOffice(w, 'am') && isOffice(w, 'pm');
-  return [['wait', 'まだ来ていない'], ['late', '遅刻'], ['early', '早退'], ['part_am', '午前だけ通所'], ['part_pm', '午後から通所'], ...(full ? [] : [['extra', '終日通所']]), ['off', 'お休み'], ['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後だけ在宅']];
+  return [['wait', 'まだ来ていない'], ['late', '遅刻'], ['early', '早退'], ['part_am', '午前だけ通所'], ['part_pm', '午後から通所'], ...(full ? [] : [['extra', '終日通所']]), ['off', 'お休み'], ...HOME_OPTS];
+}
+// 今日だけ来る人：今日が利用日ではなく、今日の予定も入っていない人
+const EXTRA_OPTS = [['extra', '終日'], ['part_am', '午前だけ'], ['part_pm', '午後から']];
+const extraCands = () => live('users').filter(u => !u.archived && !comesOn(u, new Date().getDay()) && !comesToday(u)).sort(byKana);
+function addExtra(){
+  const cands = extraCands();
+  if (!cands.length) { toast('今日が利用日ではない人はいません'); return; }
+  openModal('今日だけ来る人を追加', `<div class="field"><label class="f">来る人</label>${chipRadios('uid', cands.map(u => [u.id, u.name]), cands.length === 1 ? cands[0].id : '')}</div>
+    <div class="field" style="margin-bottom:0"><label class="f">時間</label>${chipRadios('when', EXTRA_OPTS, 'extra')}</div>`, fd => {
+    const u = userById(fd.get('uid')), v = fd.get('when') || 'extra';
+    if (!u) { alert('来る人を選んでください。'); return false; }
+    setTimeout(() => {
+      putPlanValue(u.id, v); save(); render();
+      showUndo(`${u.name}さんを今日だけ通所にしました（${EXTRA_OPTS.find(o => o[0] === v)[1]}）`, () => setDayPlan(u.id, null));
+    }, 0);
+  }, '', { ok: '追加する' });
 }
 // 今日の予定をまとめて変える（いつも来る人は1行ずつ、いつもは来ない人は「今日だけ来る人」から選ぶ）
 function bulkPlan(){
@@ -2489,7 +2512,7 @@ function bulkPlan(){
       <span class="bp-time">${timeSelect('t_' + u.id, 't_' + u.id, p.at || nowRounded())}<input type="text" name="n_${u.id}" value="${esc(p.note || '')}" placeholder="理由など" aria-label="${esc(u.name)}さんの理由"></span></div>`; };
   const body = `${reg.length ? `<div class="form-sec"><div class="sec">${icw('calendar')}${WDN[d]}曜日にいつも来る人</div>${reg.map(row).join('')}</div>` : ''}
     ${others.length ? `<div class="form-sec"><div class="sec">${icw('plus')}今日だけ来る人（振替など）</div>
-      <div class="chips">${others.map(u => `<label class="chip-check"><input type="checkbox" name="extra" value="${u.id}" ${planValue(u) === 'extra' ? 'checked' : ''}><span>${esc(u.name)}</span></label>`).join('')}</div></div>` : ''}`;
+      ${others.map(u => { const cur = extraValue(u); return `<div class="bp-row"><div class="bp-name"><b>${esc(u.name)}</b></div><select name="x_${u.id}" aria-label="${esc(u.name)}さんの今日の予定"><option value="">来ない</option>${EXTRA_OPTS.map(([v, t]) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div>`; }).join('')}</div>` : ''}`;
   openModal(`今日（${md(today())}）の予定をまとめて変える`, body, fd => {
     const changes = [];
     reg.forEach(u => {
@@ -2499,8 +2522,7 @@ function bulkPlan(){
       if (v === planValue(u) && (v === 'off' || v === 'wait' ? (p.note || '') === note : !timed || (p.at === at && (p.note || '') === note))) return;
       changes.push([u, v, at, note]);
     });
-    const ex = new Set(fd.getAll('extra'));
-    others.forEach(u => { const on = ex.has(u.id), was = planValue(u) === 'extra'; if (on !== was) changes.push([u, on ? 'extra' : '', '', '']); });
+    others.forEach(u => { const v = fd.get('x_' + u.id) || ''; if (v !== extraValue(u)) changes.push([u, v, '', '']); });
     if (!changes.length) { toast('変更はありませんでした'); return; }
     const ng = changes.filter(([u, v]) => v.startsWith('home') && !homeOK(u)).map(([u]) => u.name);
     if (ng.length && !confirm(`${ng.join('、')}さんは在宅利用の申請がないか、申請中か、期限切れです。このまま在宅にしますか？`)) return false;
@@ -2524,7 +2546,8 @@ function viewHelp(){
       ], '「今日」画面は印刷して朝礼で使うこともできます。')}
       ${s('calendar', 'お休み・遅刻・在宅の連絡を受けたとき', [
         '1人だけなら、その人のカード右上の<b>「予定を変える」</b>を押して、遅刻・早退・午前だけ通所・お休み・在宅などを選びます。',
-        '何人もまとめて入れるときや、振替で今日だけ来る人がいるときは、<b>「予定をまとめて変える」</b>を使います。',
+        '何人もまとめて入れるときは、<b>「予定をまとめて変える」</b>を使います。',
+        '利用日ではない人が振替などで来るときは、一覧のいちばん下の<b>「今日だけ来る人を追加」</b>から入れます。',
         '遅刻・早退は、時刻（10分きざみ）と理由も入れられます。間違えたときは<b>「元に戻す」</b>で取り消せます。'
       ], 'ここでの記録は職員の申し送り用です。出欠の正式な記録は、これまでどおりの方法で残してください。')}
       ${s('pencil', '作業の様子を記録する', [
@@ -5889,12 +5912,12 @@ const actions = {
     const u = userById(el.dataset.id); if (!u) return;
     const w = weekSlots(u, new Date().getDay()), full = isOffice(w, 'am') && isOffice(w, 'pm');
     const timeOpts = [['late', '遅刻'], ['early', '早退'], ['part_am', '午前だけ通所'], ['part_pm', '午後から通所'], ...(full ? [] : [['extra', '終日通所']])];
-    const restOpts = [['off', 'お休み'], ['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後だけ在宅']];
+    const restOpts = [['off', 'お休み'], ...HOME_OPTS];
     const opts = [...timeOpts, ...restOpts];
     const prev = planOf(u.id) ? clone(planOf(u.id)) : null, p0 = prev && prev.mode !== 'wait' ? prev : {}, cur = el.dataset.v || planValue(u);
-    openModal(`${esc(u.name)}さんの今日の予定`, `<div class="field"><label class="f">朝の確認</label>${chipRadios('plan', [['wait', 'まだ来ていない']], cur)}</div>
+    openModal(`${esc(u.name)}さんの今日の予定`, `<div class="field"><label class="f">出欠</label>${chipRadios('plan', [['wait', 'まだ来ていない'], ['off', 'お休み']], cur)}</div>
       <div class="field"><label class="f">時間を変える</label>${chipRadios('plan', timeOpts, cur)}</div>
-      <div class="field"><label class="f">お休み・在宅</label>${chipRadios('plan', restOpts, cur)}</div>
+      <div class="field"><label class="f">在宅</label>${chipRadios('plan', HOME_OPTS, cur)}</div>
       <div class="grid2 late-f" style="gap:0 14px"><div class="field late-t" style="margin-bottom:0"><label class="f" for="late_at"><span class="when-late">来た時刻</span><span class="when-early">帰る時刻</span></label>${timeSelect('late_at', 'lateAt', p0.at || nowRounded())}</div>
         <div class="field" style="margin-bottom:0"><label class="f" for="late_note">理由など</label><input type="text" id="late_note" name="lateNote" value="${esc(p0.note || '')}" placeholder="例：体調不良・通院・電車の遅れ"></div></div>`, fd => {
       const v = fd.get('plan');
@@ -5919,6 +5942,7 @@ const actions = {
     setDayPlan(u.id, 'late', null, { at, note: '' });
     showUndo(`${u.name}さんを通所にしました（遅刻 ${at}）`, () => prev ? setDayPlan(u.id, prev.mode, prev.part, { ...prev }) : setDayPlan(u.id, null));
   },
+  addExtra: () => addExtra(),
   dayCome: el => { const u = userById(el.dataset.id); if (!u) return; setDayPlan(u.id, 'extra'); showUndo(`${u.name}さんは今日は通所にしました`, () => setDayPlan(u.id, null)); },
   lunchSet: el => {
     const id = lunchId(el.dataset.id);
