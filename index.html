@@ -2233,7 +2233,7 @@ function viewToday(){
         const mine = eqToday(u.id), plan = todayPlan(u);
         const traits = u.voiceTraits || [], methods = u.voiceMethods || [];
         return `<div class="tcard v-${u.voice || 'none'} today-row" data-act="openUser" data-id="${u.id}" role="button" tabindex="0" aria-label="${esc(u.name)}さんの詳細">
-          <div class="tc-head"><div class="tc-name"><b>${esc(u.name)}</b>${voiceBadge(u.voice)}${phoneBadge(u)}${allergyBadge(u)}</div><span class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn small noprint" data-act="newChat" data-id="${u.id}" title="今日話していたことをメモします">${ic('speech')}メモ</button>${plan.btn}</span></div>
+          <div class="tc-head"><div class="tc-name"><b>${esc(u.name)}</b>${voiceBadge(u.voice)}${phoneBadge(u)}${allergyBadge(u)}</div><span class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn small noprint" data-act="newChat" data-id="${u.id}" title="今日話していたことをメモします">${ic('speech')}メモ</button>${plan.btn}</span></div>
           ${plan.text || feat('equip') || u.mainStaff ? `<div class="tc-sub">${plan.text ? `<span>${plan.text}</span>` : ''}${u.mainStaff ? `<span class="tc-seat">${ic('person')}担当：${esc(u.mainStaff)}</span>` : ''}${feat('equip') && eqs.length ? `<span class="tc-seat">${ic('monitor')}${mine.length ? mine.map(x => esc(x.e.name) + (x.half ? `（${HALF_T[x.half]}）` : '')).join('・') : '<b class="warn-t">席が未割り当て</b>'}</span>` : ''}</div>` : ''}
           ${(() => { const c = chatsOf(u.id)[0]; return c && daysSince(c.date) <= 30 ? `<div class="tc-chat noprint">${ic('speech')}<span class="d">${md(c.date)}</span><span>${esc(cutText(c.text, 60))}</span></div>` : ''; })()}
           <div class="tc-body${traits.length || methods.length ? '' : ' one'}">
@@ -2419,18 +2419,21 @@ function concernUsers(){
 const ABSENT_DAYS = 14, ABSENT_MIN = 3;
 function absentUsers(mode = 'off'){
   const since = addDays(-ABSENT_DAYS + 1);
-  const offs = live('dayplan').filter(p => p.mode === mode && p.date >= since && p.date <= today());
+  const offs = live('dayplan').filter(p => (p.mode === mode || (mode === 'early' && p.left)) && p.date >= since && p.date <= today());
   return live('users').filter(u => !u.archived).map(u => ({ u, n: offs.filter(p => p.userId === u.id).length })).filter(x => x.n >= ABSENT_MIN);
 }
 // お休み・遅刻・早退の記録：その人の分を新しい順に
 const ABSENT_KIND = { off: 'お休み', late: '遅刻', early: '早退' };
-const absentsOf = (uid0, since) => live('dayplan').filter(p => p.userId === uid0 && ABSENT_KIND[p.mode] && p.date <= today() && (!since || p.date >= since)).sort((a, b) => b.date.localeCompare(a.date));
+// 早退を重ねた日（p.left）は、遅刻と早退を別々に数える。kind：off / late / early
+const absentsOf = (uid0, since) => live('dayplan').filter(p => p.userId === uid0 && p.date <= today() && (!since || p.date >= since))
+  .flatMap(p => [...(ABSENT_KIND[p.mode] ? [{ date: p.date, kind: p.mode, at: p.at, note: p.note }] : []), ...(p.left ? [{ date: p.date, kind: 'early', at: p.left.at, note: p.left.note }] : [])])
+  .sort((a, b) => b.date.localeCompare(a.date));
 function absentList(uid0){
   const u = userById(uid0); if (!u) return;
   const list = absentsOf(uid0);
-  const n = k => absentsOf(uid0, addDays(-29)).filter(p => p.mode === k).length;
+  const n = k => absentsOf(uid0, addDays(-29)).filter(p => p.kind === k).length;
   const sum = Object.keys(ABSENT_KIND).map(k => `<span>${ABSENT_KIND[k]}<b>${n(k)}</b></span>`).join('');
-  const row = p => `<div class="off-row"><span>${fmtDay(p.date)}</span><span class="k">${ABSENT_KIND[p.mode]}${p.at ? ' <span class="small muted">' + esc(p.at) + '</span>' : ''}</span><span class="t">${p.note ? esc(p.note) : '<span class="muted">理由なし</span>'}</span></div>`;
+  const row = p => `<div class="off-row"><span>${fmtDay(p.date)}</span><span class="k">${ABSENT_KIND[p.kind]}${p.at ? ' <span class="small muted">' + esc(p.at) + '</span>' : ''}</span><span class="t">${p.note ? esc(p.note) : '<span class="muted">理由なし</span>'}</span></div>`;
   openModal(`${esc(u.name)}さんのお休み・遅刻・早退`, `<div class="lunch-sum" style="padding-bottom:16px;margin-bottom:4px;border-bottom:1px solid var(--line)"><span class="muted" style="flex-basis:100%">直近30日</span>${sum}</div>
     ${list.length ? `<div class="off-list">${list.slice(0, 60).map(row).join('')}</div>` : '<p class="muted" style="margin:0">まだ記録はありません。</p>'}`, null);
 }
@@ -2484,9 +2487,11 @@ function todayPlan(u){
   else if (own && p.mode === 'wait') parts.push(`<b class="tplan warn-t">まだ来ていない</b>${p.note ? '：' + esc(p.note) : ''}`);
   else if (own && p.mode === 'home') parts.push(`<b class="tplan">${half}（今日だけ）</b>`);
   else if (half) parts.push(half);
+  if (own && p.left) parts.push(`<b class="tplan">早退${p.left.at ? '（' + esc(p.left.at) + '）' : ''}</b>${p.left.note ? '：' + esc(p.left.note) : ''}`);
   if (u.attendNote && !(own && (p.mode === 'extra' || p.mode === 'part'))) parts.push(esc(u.attendNote));   // 今日だけの時間を入れた日は、いつもの通所のメモは出さない
-  const btn = own ? `<button type="button" class="btn small noprint" data-act="dayReset" data-id="${u.id}">${ic('back')}元に戻す</button>`
-    : `<button type="button" class="btn small noprint" data-act="dayChange" data-id="${u.id}">${ic('calendar')}予定を変える</button>`;
+  const leave = own && LEAVE_OK.includes(p.mode) ? `<button type="button" class="btn small noprint" data-act="dayLeave" data-id="${u.id}">${ic('clock')}早退</button>` : '';
+  const btn = leave + (own ? `<button type="button" class="btn small noprint" data-act="dayReset" data-id="${u.id}">${ic('back')}元に戻す</button>`
+    : `<button type="button" class="btn small noprint" data-act="dayChange" data-id="${u.id}">${ic('calendar')}予定を変える</button>`);
   return { text: parts.join('・'), btn };
 }
 // 「今日在宅の人」の右のボタン：今日だけ在宅にした人は「元に戻す」、毎週の在宅の日の人は「今日は通所」
@@ -2494,6 +2499,19 @@ function homeEndBtn(u){
   const p = planOf(u.id);
   if (p && !p.weekly) return `<button class="btn small noprint dayb" data-act="dayReset" data-id="${u.id}" title="在宅を取り消して、いつもの予定に戻します">${ic('back')}元に戻す</button>`;
   return todayHome(u) === 'all' ? `<button class="btn small noprint dayb" data-act="dayCome" data-id="${u.id}" title="今日だけ事業所に来る予定にします">${ic('calendar')}今日は通所</button>` : '';
+}
+// 今日だけ通所・午後から通所・遅刻の日に、早退を重ねて残す
+const LEAVE_OK = ['extra', 'part', 'late'];
+function editLeave(uid0){
+  const u = userById(uid0), p = planOf(uid0); if (!u || !p || !LEAVE_OK.includes(p.mode)) return;
+  const L = p.left || {};
+  const body = `<div class="grid2" style="gap:0 14px"><div class="field" style="margin-bottom:0"><label class="f" for="lv_at">帰る時刻</label>${timeSelect('lv_at', 'at', L.at || nowRounded())}</div>
+    <div class="field" style="margin-bottom:0"><label class="f" for="lv_note">理由など</label><input type="text" id="lv_note" name="note" value="${esc(L.note || '')}" placeholder="例：体調不良・通院"></div></div>`;
+  const foot = p.left ? `<button type="button" class="btn danger" id="delBtn">${ic('trash')}早退を取り消す</button>` : '';
+  const put = left => { const q = planOf(uid0); if (!q) return; if (left) q.left = left; else delete q.left; q.staff = state.me; touch(q); save(); };
+  openModal(`${esc(u.name)}さんの早退`, body, fd => { put({ at: fd.get('at') || '', note: String(fd.get('note') || '').trim() }); toast('早退を残しました'); }, foot);
+  if (p.left) $('#delBtn').onclick = () => { put(null); modal.close(); render(); toast('早退を取り消しました'); };
+  const n = $('#lv_note'); if (n) n.focus();
 }
 function setDayPlan(uid0, mode, part, extra){
   const id = today() + '_' + uid0;
@@ -2783,7 +2801,7 @@ function viewDetail(){
           <div class="row" style="gap:8px 14px"><h1>${esc(u.name)}</h1>${u.archived ? '<span class="badge mute">利用終了</span>' : ''}${editBtn('editUser', `data-id="${u.id}" data-part="basic"`, '名前・週の予定を編集')}</div>
           ${u.allergy ? `<div style="margin-top:10px">${allergyBadge(u)}</div>` : ''}
           <div class="row small uh-days" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b>通所</b>${daysChips(u)}${u.attendNote ? `<span class="muted">${esc(u.attendNote)}</span>` : ''}${!userDays(u).length ? '<span class="muted">曜日 未設定</span>' : ''}${homeBadge(u)}</div>
-          ${(() => { const a = absentsOf(u.id, addDays(-29)); if (!absentsOf(u.id).length) return ''; const c = k => a.filter(p => p.mode === k).length; const t = Object.keys(ABSENT_KIND).filter(c).map(k => `<span class="nw">${ABSENT_KIND[k]} ${c(k)}回</span>`).join('・'); return `<div class="row small" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b class="nw">お休み・遅刻</b><span class="muted nw">直近30日</span><span>${t || 'なし'}</span><button type="button" class="linkbtn small noprint" data-act="absentList" data-id="${u.id}">記録を見る</button></div>`; })()}
+          ${(() => { const a = absentsOf(u.id, addDays(-29)); if (!absentsOf(u.id).length) return ''; const c = k => a.filter(p => p.kind === k).length; const t = Object.keys(ABSENT_KIND).filter(c).map(k => `<span class="nw">${ABSENT_KIND[k]} ${c(k)}回</span>`).join('・'); return `<div class="row small" style="gap:8px 10px;margin-top:14px">${ic('calendar')}<b class="nw">お休み・遅刻</b><span class="muted nw">直近30日</span><span>${t || 'なし'}</span><button type="button" class="linkbtn small noprint" data-act="absentList" data-id="${u.id}">記録を見る</button></div>`; })()}
           <div class="small" style="margin-top:10px">${mainStaffLine(u)}</div>
           <div class="small muted" style="margin-top:6px">${u.updatedAt ? '最終更新：' + stamp(u.updatedAt, u.updatedBy) : ''}</div>
         </div>
@@ -4971,14 +4989,14 @@ function dailyText(date, who, cfg){
     // 在宅の人は、記録がなくても連絡の時刻と空の欄を出す（自分の分のときは、自分が連絡した人だけ）
     const part = homePartOn(u, date), calls = part && p ? [1, 2].map(k => p['c' + k]).filter(Boolean) : [];
     const homeCalled = !!part && (!who || calls.some(c => c.by === who));
-    if (!logs.length && !ms.length && !homeCalled && !(p && (p.mode === 'late' || p.mode === 'early') && !who)) {
+    if (!logs.length && !ms.length && !homeCalled && !(p && (p.mode === 'late' || p.mode === 'early' || p.left) && !who)) {
       if (!who && date === today() && (comesToday(u) || isHomeToday(u))) missing.push(u.name);
       return;
     }
     if (R.nameFmt === 'initial' && !initialOf(u)) noKana.push(u.name);
     const late = p && (p.mode === 'late' || p.mode === 'early') ? '（' + (p.mode === 'late' ? '遅刻' : '早退') + (p.at ? ' ' + p.at : '') + (p.note ? '・' + p.note : '') + '）' : '';
     const waitT = p && p.mode === 'wait' ? '（まだ来ていない）' : '';
-    const partT = p && p.mode === 'part' ? (p.part === 'am' ? '（午前だけ通所）' : '（午後から通所）') : '';
+    const partT = (p && p.mode === 'part' ? (p.part === 'am' ? '（午前だけ通所）' : '（午後から通所）') : '') + (p && p.left ? '（早退' + (p.left.at ? ' ' + p.left.at : '') + (p.left.note ? '・' + p.left.note : '') + '）' : '');
     const head = `${nm(u)}${R.honor}${part ? '（' + HOME_PART[part] + (calls.length ? '・連絡 ' + calls.map(c => c.t).join('／') : '') + '）' : ''}${late}${waitT}${partT}`;
     const L = [];
     if (I.work) {
@@ -6001,6 +6019,7 @@ const actions = {
     Object.assign(x, { v: nv, staff: state.me, deleted: false }); touch(x);
     save(); render();
   },
+  dayLeave: el => editLeave(el.dataset.id),
   dayReset: el => { setDayPlan(el.dataset.id, null); toast('今日の予定を元に戻しました'); },
   removeSamples: () => removeSamples(),
   goSyncGuide: () => { state.view = 'settings'; render(); const c = document.getElementById('set-sync'); if (c) { c.scrollIntoView({ block: 'start' }); const d = c.querySelector('details.optgrp'); if (d) d.open = true; } },
