@@ -1125,7 +1125,8 @@ const FEATURES = [
   ['hearing', '制作ヒアリング', '作りたいもの・好きなテイスト・使ったことのあるツールなどを聞き取って記録します（イラスト・動画などの制作向け）'],
   ['orders', '案件の管理', '受けた案件の納期・担当を管理し、納期が近づくとお知らせします'],
   ['equip', '席・機材', '曜日ごとに、パソコン・道具・席を使う人を割り当てます'],
-  ['lunch', 'お弁当', 'その日のお弁当が「いる・いらない」を一人ずつ記録し、人数を数えます']
+  ['lunch', 'お弁当', 'その日のお弁当が「いる・いらない」を一人ずつ記録し、人数を数えます'],
+  ['wage', '工賃の受け渡し', '毎月の工賃を渡したかを、<span class="nw">一人ずつ</span>チェックします']
 ];
 const feat = k => !db.settings.features || db.settings.features[k] !== false;
 // 言葉の切り替え：制作系（イラスト・動画など）を選んでいない事業所では「作品・制作」を「作業・取り組み」にする
@@ -1253,7 +1254,7 @@ function showUndo(msg, undo){
    各データには _ts（更新時刻）を持たせ、共有ファイルとの統合時に新しい方を残す。
    削除は { id, deleted:true } の印を残して他のパソコンにも伝える。
    ========================================================= */
-const COLLS = ['users', 'hearings', 'works', 'logs', 'skills', 'jobs', 'orders', 'guides', 'hist', 'equip', 'dayplan', 'meetings', 'staff', 'events', 'docs', 'chats', 'lunch'];
+const COLLS = ['users', 'hearings', 'works', 'logs', 'skills', 'jobs', 'orders', 'guides', 'hist', 'equip', 'dayplan', 'meetings', 'staff', 'events', 'docs', 'chats', 'lunch', 'wage'];
 const arr = v => Array.isArray(v) ? v : null;
 function normalize(d){
   d = d || {};
@@ -1270,6 +1271,7 @@ function normalize(d){
     presets: arr(s.presets) || [],
     report: s.report && typeof s.report === 'object' ? s.report : null,
     retainYears: Number(s.retainYears) || 0,
+    payDay: Math.min(28, Math.max(1, Number(s.payDay) || 25)),
     optAdded: arr(s.optAdded) || [],   // あとの版で選択肢に足したもの（足すのは1回だけ。消したあとは戻さない）
     // 初期設定が済んでいるか（以前から使っているデータは済んでいる扱い）
     setupDone: s.setupDone != null ? s.setupDone : ((arr(d.users) || []).length > 0 || (s._ts || 0) > 0),
@@ -2249,6 +2251,7 @@ function viewToday(){
     ${noDays.length ? `<p class="small muted" style="margin:10px 0 0">${ic('warning')} 通所曜日が未設定の利用者が${noDays.length}名います（${noDays.map(u => esc(u.name)).join('、')}）。各利用者の「名前・週の予定を編集」で設定すると、ここに表示されます。</p>` : ''}
   </div>`;
   if (feat('lunch')) html += lunchCard(coming);
+  if (feat('wage')) html += wageCard();
 
   return html;
 }
@@ -2301,10 +2304,34 @@ function lunchCard(coming){
   return `<div class="card mt noprint"><div class="card-head">${sec('pot', '今日のお弁当')}<span class="spacer"></span><span class="lunch-sum"><span>いる<b>${n('yes')}</b></span><span>いらない<b>${n('no')}</b></span>${n('') ? `<span>未確認<b>${n('')}</b></span>` : ''}</span></div>
     <div class="lunch-list">${coming.map(u => `<div class="lunch-row"><span class="nm"><b>${esc(u.name)}</b></span><span class="yn noprint">${opt(u, 'yes', 'いる')}${opt(u, 'no', 'いらない')}</span><span class="print-only">${{ yes: 'いる', no: 'いらない' }[lunchOf(u.id)] || '未確認'}</span>${u.allergy || u.dislike ? `<div class="al row" style="gap:6px">${allergyBadge(u)}${dislikeBadge(u)}</div>` : ''}</div>`).join('')}</div></div>`;
 }
+// 工賃の受け渡し：毎月の受け渡し日の数日前から、その月の分を一人ずつチェックする
+// 月のはじめは、前の月にまだ渡していない人がいれば前の月の分を出す（前の月にチェックを使っていた場合だけ）
+const WAGE_BEFORE = 3, WAGE_LATE = 2;
+const payDay = () => db.settings.payDay || 25;
+const wageId = (ym, uid0) => 'W:' + ym + ':' + uid0;
+const wageOf = (ym, uid0) => live('wage').find(x => x.id === wageId(ym, uid0)) || null;
+const wageUsers = () => live('users').filter(u => !u.archived);
+const wageLeft = ym => wageUsers().filter(u => !(wageOf(ym, u.id) || {}).v);
+const wagePayDate = ym => ym + '-' + String(payDay()).padStart(2, '0');
+function wageYm(){
+  const ym = today().slice(0, 7);
+  if (new Date().getDate() >= payDay() - WAGE_BEFORE) return ym;
+  const prev = ymShift(ym, -1);
+  return live('wage').some(x => x.ym === prev) && wageLeft(prev).length ? prev : '';
+}
+function wageCard(){
+  const ym = wageYm(), us = wageUsers(); if (!ym || !us.length) return '';
+  const n = k => us.filter(u => ((wageOf(ym, u.id) || {}).v || '') === k).length;
+  const opt = (u, k, label) => { const w = wageOf(ym, u.id), on = !!w && w.v === k; return `<button type="button" class="${k}${on ? ' on' : ''}" data-act="wageSet" data-id="${u.id}" data-ym="${ym}" data-v="${k}" aria-pressed="${on}"${on ? ` title="${fmtDay(w.date)}${w.staff ? '（' + esc(w.staff) + '）' : ''}"` : ''}>${on ? ic('check') : ''}${label}</button>`; };
+  const text = u => { const w = wageOf(ym, u.id); return !w || !w.v ? 'まだ' : w.v === 'yes' ? `渡した（${fmtDay(w.date)}）` : 'なし'; };
+  return `<div class="card mt noprint anchor" id="wageCard"><div class="card-head">${sec('check', `工賃の受け渡し（${Number(ym.slice(5))}月${payDay()}日）`)}<span class="spacer"></span><span class="lunch-sum"><span>渡した<b>${n('yes')}</b></span>${n('none') ? `<span>なし<b>${n('none')}</b></span>` : ''}${n('') ? `<span>まだ<b>${n('')}</b></span>` : ''}</span></div>
+    <div class="lunch-list">${us.map(u => `<div class="lunch-row"><span class="nm"><b>${esc(u.name)}</b></span><span class="yn noprint">${opt(u, 'yes', '渡した')}${opt(u, 'none', 'なし')}</span><span class="print-only">${text(u)}</span></div>`).join('')}</div>
+    <p class="small muted" style="margin:14px 0 0">「なし」は、その月に渡す工賃がない人です。受け渡し日は<span class="nw">「設定」→「事業所の設定」</span>で変えられます。</p></div>`;
+}
 // 「今日」のお知らせ：1つの枠に1行ずつ。急ぐものから並べ、多いときは残りをたたむ
 const NOTICE_SHOW = 4;
 // お知らせの種類：設定でオフにした種類は出さない（書きかけ・相談・苦情・回復用コード・バックアップなどは常に出す）
-const NOTICE_KINDS = [['order', '案件の納期'], ['deadline', '締切'], ['event', '行事'], ['plan', '面談・モニタリングの予定'], ['stale', '記録がしばらくない作品'], ['concern', '気になる様子が続いている人'], ['absent', 'お休み・遅刻・早退が増えている人'], ['homecall', '在宅の人の連絡回数'], ['homeuntil', '在宅利用の期限'], ['cert', '受給者証の有効期限'], ['pass', '定期券の有効期限'], ['med', 'お薬手帳の確認'], ['retire', '利用終了した人の記録の保存期間']];
+const NOTICE_KINDS = [['order', '案件の納期'], ['deadline', '締切'], ['event', '行事'], ['plan', '面談・モニタリングの予定'], ['stale', '記録がしばらくない作品'], ['concern', '気になる様子が続いている人'], ['absent', 'お休み・遅刻・早退が増えている人'], ['homecall', '在宅の人の連絡回数'], ['homeuntil', '在宅利用の期限'], ['cert', '受給者証の有効期限'], ['pass', '定期券の有効期限'], ['med', 'お薬手帳の確認'], ['retire', '利用終了した人の記録の保存期間'], ['wage', '工賃をまだ渡していない人']];
 const noticeOn = k => !(db.settings.noticeOff || []).includes(k);
 function noticeCard(due, plans, stale){
   const N = []; let K = '';
@@ -2337,6 +2364,12 @@ function noticeCard(due, plans, stale){
   [['late', '遅刻'], ['early', '早退']].forEach(([mode, t]) => absentUsers(mode).forEach(({ u, n }) => N.push({ sev: 1, icon: 'calendar', print: true,
     html: `<b>${esc(u.name)}</b><span class="small muted">${t}が増えています（直近${ABSENT_DAYS}日で${n}回）</span>`,
     act: btn('absentList', `data-id="${u.id}"`, '理由を見る') })));
+  // 工賃の受け渡し日を過ぎて、まだ渡していない人
+  K = 'wage';
+  const wym = feat('wage') ? wageYm() : '';
+  if (wym) { const left = wageLeft(wym), due = parse(wagePayDate(wym)); due.setDate(due.getDate() + WAGE_LATE);
+    if (left.length && ymd(due) < today()) N.push({ sev: 1, icon: 'check', print: false,
+      html: `<span>工賃をまだ渡していない人が<b>${left.length}人</b>います（${Number(wym.slice(5))}月${payDay()}日の分）</span>`, act: btn('goWage', '', '確認する') }); }
   // 保存する年数を過ぎた、利用終了の人の記録
   K = 'retire';
   const oldRetired = retiredUsers().filter(retireDue);
@@ -4242,6 +4275,7 @@ function viewSettings(){
       <div class="setrow" style="align-items:flex-start"><b>使う機能</b><div style="flex:1;min-width:240px">
         ${FEATURES.map(([k, t, d]) => `<label class="ftoggle"><input type="checkbox" data-feature="${k}" ${feat(k) ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`).join('')}
         <p class="small muted" style="margin:0">オフにすると、その画面やボタンを表示しません。オンに戻すと、記録もそのまま見られます。</p></div></div>
+      ${feat('wage') ? `<div class="setrow"><b>工賃の受け渡し日</b><label class="small row" style="gap:6px">毎月<select id="payDay" style="width:auto">${Array.from({ length: 28 }, (_, i) => i + 1).map(d => `<option value="${d}" ${payDay() === d ? 'selected' : ''}>${d}日</option>`).join('')}</select><span class="muted">この${WAGE_BEFORE}日前から「今日」にチェック欄を出します</span></label></div>` : ''}
       <div class="setrow anchor" id="set-notice" style="align-items:flex-start"><b>お知らせに出すもの</b><div style="flex:1;min-width:240px">
         <div class="chips">${NOTICE_KINDS.map(([k, t]) => `<label class="chip-check"><input type="checkbox" data-notice="${k}" ${noticeOn(k) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
         <p class="small muted" style="margin:8px 0 0">チェックを外した種類は「今日」のお知らせに出しません。全員の画面に反映されます。</p></div></div>
@@ -4562,7 +4596,7 @@ function bulkAddUsers(){
 function userPairs(id){
   const pairs = [['users', id]];
   const wids = new Set(live('works').filter(w => w.userId === id).map(w => w.id));
-  ['hearings', 'works', 'hist', 'meetings', 'dayplan', 'docs', 'chats', 'lunch'].forEach(k => live(k).filter(x => x.userId === id).forEach(x => pairs.push([k, x.id])));
+  ['hearings', 'works', 'hist', 'meetings', 'dayplan', 'docs', 'chats', 'lunch', 'wage'].forEach(k => live(k).filter(x => x.userId === id).forEach(x => pairs.push([k, x.id])));
   live('logs').filter(l => l.userId === id || wids.has(l.workId)).forEach(l => pairs.push(['logs', l.id]));
   if (skillOf(id)) pairs.push(['skills', id]);
   if (jobsOf(id)) pairs.push(['jobs', id]);
@@ -5965,6 +5999,7 @@ function bindInputs(){
   if (hear) { hear.addEventListener('change', () => { hear.dataset.auto = ''; }); document.querySelectorAll('#setupForm [name="preset"]').forEach(c => c.addEventListener('change', () => { if (hear.dataset.auto) hear.checked = !!document.querySelector('#setupForm [name="preset"][value="creative"]:checked'); })); }
   document.querySelectorAll('[data-notice]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.notice; changeSettings(null, () => { const s = new Set(db.settings.noticeOff || []); e.target.checked ? s.delete(k) : s.add(k); db.settings.noticeOff = [...s]; }); toast(e.target.checked ? 'お知らせに出します' : 'お知らせに出さないようにしました'); }));
   document.querySelectorAll('[data-feature]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.feature; changeSettings(null, () => { db.settings.features[k] = e.target.checked; }); toast(e.target.checked ? '機能をオンにしました' : '機能をオフにしました（記録は残っています）'); }));
+  on('#payDay', 'change', e => { changeSettings(null, () => { db.settings.payDay = Number(e.target.value); }); toast(`毎月${e.target.value}日にしました`); });
   on('#retainYears', 'change', e => { changeSettings(null, () => { db.settings.retainYears = Number(e.target.value); }); toast(`${e.target.value}年にしました`); });
   on('#autoLock', 'change', e => { local.set('autoLock', e.target.value === String(LOCK_DEF) ? null : e.target.value); toast(e.target.value === 'off' ? '自動ロックをしない設定にしました' : `${e.target.value}分間操作がないとロックします`); });
   on('#sharedPC', 'change', e => { local.set('sharedPC', e.target.checked ? null : 'off'); toast(e.target.checked ? '共用パソコンとして使います' : '記入者を自動で解除しません'); });
@@ -6020,6 +6055,15 @@ const actions = {
     save(); render();
   },
   dayLeave: el => editLeave(el.dataset.id),
+  wageSet: el => {
+    const { id: uid0, ym, v } = el.dataset, id = wageId(ym, uid0);
+    let x = db.wage.find(y => y.id === id);
+    const nv = x && !x.deleted && x.v === v ? '' : v;
+    if (!x) { x = { id, ym, userId: uid0 }; db.wage.push(x); }
+    Object.assign(x, { v: nv, date: today(), staff: state.me, deleted: false }); touch(x);
+    save(); render();
+  },
+  goWage: () => { const c = document.getElementById('wageCard'); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
   dayReset: el => { setDayPlan(el.dataset.id, null); toast('今日の予定を元に戻しました'); },
   removeSamples: () => removeSamples(),
   goSyncGuide: () => { state.view = 'settings'; render(); const c = document.getElementById('set-sync'); if (c) { c.scrollIntoView({ block: 'start' }); const d = c.querySelector('details.optgrp'); if (d) d.open = true; } },
