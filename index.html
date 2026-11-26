@@ -420,6 +420,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .tc-sub{font-size:13px;color:var(--muted);margin-top:-2px;display:flex;flex-wrap:wrap;gap:2px 14px}
 .lunch-sum{font-size:14px;color:var(--muted);display:flex;gap:4px 16px;flex-wrap:wrap}
 .lunch-sum>span{white-space:nowrap}
+.doc-pass{margin:28px 0 0;padding-top:20px;border-top:1px solid var(--line)}
 .lunch-sum b{color:var(--text);font-size:18px;margin-left:4px}
 .lunch-row{display:grid;grid-template-columns:minmax(8em,13em) 1fr auto;grid-template-areas:"nm al seg";align-items:center;gap:6px 16px;padding:10px 0;border-bottom:1px solid var(--line)}
 .lunch-row:last-child{border-bottom:0}
@@ -1264,6 +1265,7 @@ function normalize(d){
     checklist: arr(s.checklist) || clone(DEFAULT_CHECKLIST),
     jobTypes: arr(s.jobTypes) || clone(DEFAULT_JOBS),
     facility: s.facility || '',
+    noticeOff: Array.isArray(s.noticeOff) ? s.noticeOff : [],
     features: Object.assign({ hearing: true, orders: true, equip: true }, s.features || {}),
     presets: arr(s.presets) || [],
     report: s.report && typeof s.report === 'object' ? s.report : null,
@@ -1623,9 +1625,9 @@ function slotLabel(s){
 const comesOn = (u, d) => { const s = weekSlots(u, d); return !!(s.am || s.pm); };
 const userDays = u => WEEK.filter(d => comesOn(u, d));
 const HOME_PART = { all: '在宅', am: '午前在宅', pm: '午後在宅' };
-// 今日だけの在宅：all 終日在宅／ho 午前在宅・午後通所／oh 午前通所・午後在宅／am 午前だけ在宅／pm 午後だけ在宅
+// 今日だけの在宅：all 終日在宅／ho 午前在宅・午後通所／oh 午前通所・午後在宅／am 午前だけ在宅／pm 午後から在宅
 const HOME_SLOTS = { all: { am: 'home', pm: 'home' }, ho: { am: 'home', pm: 'office' }, oh: { am: 'office', pm: 'home' }, am: { am: 'home', pm: '' }, pm: { am: '', pm: 'home' } };
-const HOME_OPTS = [['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後だけ在宅'], ['home_ho', '午前在宅・午後通所'], ['home_oh', '午前通所・午後在宅']];
+const HOME_OPTS = [['home_all', '終日在宅'], ['home_am', '午前だけ在宅'], ['home_pm', '午後から在宅'], ['home_ho', '午前在宅・午後通所'], ['home_oh', '午前通所・午後在宅']];
 // 今日だけの予定（お休み・今日だけ通所・在宅）。その日だけ有効で、出欠の記録ではない
 const planOf = uid => live('dayplan').find(p => p.date === today() && p.userId === uid);
 // その日の午前・午後の予定。今日だけの予定があればそちらを優先する
@@ -2033,7 +2035,7 @@ function changePassword(){
     });
 }
 function disableEncryption(){
-  if (live('docs').length || live('users').some(hasPii)) { alert('基本情報、受給者証番号、または受給者証・お薬手帳の画像が保存されているため、暗号化は解除できません。'); return; }
+  if (live('docs').length || live('users').some(hasPii)) { alert('基本情報、受給者証番号、または受給者証・お薬手帳・定期券の画像が保存されているため、暗号化は解除できません。'); return; }
   openModal('暗号化を解除する',
     `<p class="small" style="margin-top:0">このパソコンに保存されるデータの暗号化を解除します。おすすめしません。</p>
     <div class="field" style="margin-bottom:0"><label class="f" for="de_0">いまのパスワード</label><input type="password" spellcheck="false" autocapitalize="off" lang="en" inputmode="text" id="de_0" name="p0" autocomplete="current-password" required></div>`,
@@ -2301,25 +2303,33 @@ function lunchCard(coming){
 }
 // 「今日」のお知らせ：1つの枠に1行ずつ。急ぐものから並べ、多いときは残りをたたむ
 const NOTICE_SHOW = 4;
+// お知らせの種類：設定でオフにした種類は出さない（書きかけ・相談・苦情・回復用コード・バックアップなどは常に出す）
+const NOTICE_KINDS = [['order', '案件の納期'], ['deadline', '締切'], ['event', '行事'], ['plan', '面談・モニタリングの予定'], ['stale', '記録がしばらくない作品'], ['concern', '気になる様子が続いている人'], ['absent', 'お休み・遅刻・早退が増えている人'], ['homecall', '在宅の人の連絡回数'], ['homeuntil', '在宅利用の期限'], ['cert', '受給者証の有効期限'], ['pass', '定期券の有効期限'], ['med', 'お薬手帳の確認'], ['retire', '利用終了した人の記録の保存期間']];
+const noticeOn = k => !(db.settings.noticeOff || []).includes(k);
 function noticeCard(due, plans, stale){
-  const N = [];
+  const N = []; let K = '';
+  const push0 = N.push.bind(N); N.push = o => (!K || noticeOn(K)) && push0(o);
   const btn = (act, attrs, label, cls = '') => `<button class="btn small ${cls}" data-act="${act}" ${attrs}>${label}</button>`;
+  K = 'order';
   due.forEach(o => N.push({ sev: daysUntil(o.dueDate) <= 3 ? 0 : 1, icon: 'work', print: true,
     html: `${dueBadge(o)}<b>${esc(o.title)}</b><span class="small muted">担当：${(o.assignees || []).map(id => (userById(id) || {}).name).filter(Boolean).map(esc).join('、') || '未定'}</span>`,
     act: btn('editOrder', `data-id="${o.id}"`, '開く') }));
   // 行事・締切：締切は7日前から、行事は3日前から終わるまで
   live('events').forEach(x => {
     const n = daysUntil(x.date), open = btn('editEvent', `data-id="${x.id}"`, '開く');
+    K = x.kind === 'deadline' ? 'deadline' : 'event';
     if (x.kind === 'deadline' && n >= 0 && n <= 7) N.push({ sev: n <= 3 ? 0 : 1, icon: 'flag', print: true,
       html: `<span class="badge ${n <= 3 ? 'hard' : 'warn'}">${n ? `締切まであと${n}日（${md(x.date)}）` : '今日が締切'}</span><b>${esc(x.title)}</b>`, act: open });
     else if (x.kind === 'event' && daysUntil(x.endDate || x.date) >= 0 && n <= 3) N.push({ sev: 2, icon: 'calendar', print: true,
       html: `<span class="badge mute">${n > 0 ? `あと${n}日（${md(x.date)}）` : n === 0 ? '今日' : '開催中'}</span><b>${esc(x.title)}</b>`, act: open });
   });
+  K = 'homecall';
   // 在宅の人：15時を過ぎて連絡が足りないとき
   if (new Date().getHours() >= CALL_CHECK_HOUR) live('users').filter(u => !u.archived && isHomeToday(u)).forEach(u => {
     const done = callsOf(u.id).filter(Boolean).length;
     if (done < HOME_CALLS) N.push({ sev: 1, icon: 'phone', print: false, html: `<b>${esc(u.name)}</b><span class="small muted">在宅：今日の連絡が${done}回です</span>`, act: btn('homeCall', `data-id="${u.id}" data-n="${done + 1}"`, `連絡${done + 1}回目をした`) });
   });
+  K = 'absent';
   // お休みが増えている人（「予定を変える」で入れたお休みを数える）
   absentUsers().forEach(({ u, n }) => N.push({ sev: 1, icon: 'calendar', print: true,
     html: `<b>${esc(u.name)}</b><span class="small muted">お休みが増えています（直近${ABSENT_DAYS}日で${n}回）</span>`,
@@ -2328,24 +2338,29 @@ function noticeCard(due, plans, stale){
     html: `<b>${esc(u.name)}</b><span class="small muted">${t}が増えています（直近${ABSENT_DAYS}日で${n}回）</span>`,
     act: btn('absentList', `data-id="${u.id}"`, '理由を見る') })));
   // 保存する年数を過ぎた、利用終了の人の記録
+  K = 'retire';
   const oldRetired = retiredUsers().filter(retireDue);
   if (oldRetired.length) N.push({ sev: 2, icon: 'users', print: false,
     html: `<span>利用終了から${retainYears()}年を過ぎた人の記録が<b>${oldRetired.length}人分</b>あります</span>`, act: btn('goRetire', '', '確認する') });
-  // 気になる様子が続いている人
+  K = 'concern';
   concernUsers().forEach(({ u, hits, n, words }) => N.push({ sev: 1, icon: 'heart', print: true,
     html: `<b>${esc(u.name)}</b><span class="small muted">気になる様子が続いています（直近${n}回中${hits}回：${words.map(esc).join('・')}）</span>`,
     act: btn('openUserTab', `data-tab="works" data-id="${u.id}"`, '記録を見る') }));
+  K = 'homeuntil';
   // 在宅利用の期限：30日前から
   live('users').filter(u => !u.archived && u.homeStatus === 'approved' && u.homeUntil && daysUntil(u.homeUntil) <= 30).forEach(u => {
     const n = daysUntil(u.homeUntil);
     N.push({ sev: n < 0 ? 0 : 1, icon: 'home', print: true, html: `${homeBadge(u)}<b>${esc(u.name)}</b><span class="small muted">${n < 0 ? '在宅利用の期限が過ぎています' : `在宅利用の期限まであと${n}日`}</span>`,
       act: btn('editUser', `data-id="${u.id}" data-part="basic"`, '更新') });
   });
+  K = 'plan';
   plans.forEach(p => { const n = daysUntil(p.dd); N.push({ sev: n <= 0 ? 0 : n <= 7 ? 1 : 2, icon: 'doc', print: true,
     html: `${planBadge(p.dd, p.label)}<b>${esc(p.u.name)}</b>`, act: btn('openUserTab', `data-tab="meet" data-id="${p.u.id}"`, '開く') }); });
+  K = 'stale';
   stale.forEach(w => N.push({ sev: 1, icon: 'warning', print: true,
     html: `<b>${esc(userById(w.userId).name)}</b><span>${esc(w.title)}</span><span class="small muted">${STALE_DAYS}日以上記録なし${lastActivity(w) ? '（最終 ' + md(lastActivity(w)) + '）' : ''}</span>`,
     act: btn('addLog', `data-id="${w.id}"`, ic('pencil') + '記録') }));
+  K = '';
   if (!modal.open) [...drafts].sort((a, b) => b[1].t - a[1].t).forEach(([k, d]) => N.push({ sev: 2, icon: 'pencil',
     html: `<span>書きかけ：<b>${esc(d.title)}</b></span><span class="small muted">${md(ymd(new Date(d.t)))} ${hhmm(d.t)}</span>`,
     act: (d.open ? btn('draftOpen', `data-k="${esc(k)}"`, '続きを書く', 'primary') : '') + btn('draftDrop', `data-k="${esc(k)}"`, '消す', 'ghost') }));
@@ -2355,9 +2370,14 @@ function noticeCard(due, plans, stale){
     act: btn('openComplaint', `data-id="${m.id}"`, '開く') }); });
   live('users').filter(u => !u.archived).forEach(u => {
     const open = `data-id="${u.id}" data-tab="docs"`;
+    K = 'cert';
     if (u.certUntil) { const n = daysUntil(u.certUntil); if (n <= 60) N.push({ sev: n <= 14 ? 0 : 1, icon: 'doc', print: false, html: `<b>${esc(u.name)}</b><span>受給者証の有効期限：${md(u.certUntil)}（${n < 0 ? -n + '日過ぎています' : 'あと' + n + '日'}）</span>`, act: btn('openUserTab', open, '開く') }); }
+    K = 'pass';
+    if (u.passUntil) { const n = daysUntil(u.passUntil); if (n <= 14) N.push({ sev: n < 0 ? 0 : 1, icon: 'doc', print: false, html: `<b>${esc(u.name)}</b><span>定期券の有効期限：${md(u.passUntil)}（${n < 0 ? -n + '日過ぎています' : 'あと' + n + '日'}）</span>`, act: btn('openUserTab', open, '開く') }); }
+    K = 'med';
     if (u.medChecked && daysSince(u.medChecked) >= 180) N.push({ sev: 2, icon: 'doc', print: false, html: `<b>${esc(u.name)}</b><span>お薬手帳の確認から6か月たちました（最終 ${md(u.medChecked)}）</span>`, act: btn('openUserTab', open, '開く') });
   });
+  K = '';
   if (!APP_VIEWER && crypt.on && !crypt.rec) N.push({ sev: 1, icon: 'key', print: false, html: '<span>回復用コードがまだありません。パスワードを忘れると、データを開けなくなります</span>',
     act: btn('makeRec', '', ic('key') + '作る') });
   if (!APP_TRIAL && !APP_VIEWER && sampleTargets().users.length) N.push({ sev: 2, icon: 'users', html: '<span>サンプルデータが入っています。使い始めるときに消してください</span>',
@@ -2373,7 +2393,7 @@ function noticeCard(due, plans, stale){
   const urgent = N.filter(x => x.sev === 0).length;
   const shown = N.slice(0, Math.max(NOTICE_SHOW, urgent)), rest = N.slice(shown.length);
   return `<div class="card notices${N.some(x => x.print) ? '' : ' noprint'}" style="margin-bottom:14px">
-    <div class="card-head" style="margin-bottom:10px">${sec('flag', `お知らせ<span class="noprint">${N.length ? `（${N.length}件）` : ''}</span>`, urgent ? 'hard' : '')}</div>
+    <div class="card-head" style="margin-bottom:10px">${sec('flag', `お知らせ<span class="noprint">${N.length ? `（${N.length}件）` : ''}</span>`, urgent ? 'hard' : '')}<span class="spacer"></span><button type="button" class="linkbtn small noprint" data-act="noticeSettings">出す種類</button></div>
     ${drops}${shown.map(row).join('')}
     ${rest.length ? `<details class="more" style="margin-top:8px"><summary>ほかに${rest.length}件</summary><div style="margin-top:6px">${rest.map(row).join('')}</div></details>` : ''}
   </div>`;
@@ -2418,7 +2438,7 @@ function absentList(uid0){
 const HOME_CALLS = 2;
 const callsOf = uid0 => { const u = userById(uid0); if (!u || !isHomeToday(u)) return []; const p = planOf(uid0) || {}; return Array.from({ length: HOME_CALLS }, (_, i) => p['c' + (i + 1)] || null); };
 function callChecks(u){
-  return `<span class="calls">${callsOf(u.id).map((c, i) => `<button type="button" class="callb${c ? ' done' : ''}" data-act="homeCall" data-id="${u.id}" data-n="${i + 1}" title="${c ? `${c.t}${c.by ? '（' + esc(c.by) + '）' : ''}に連絡済み` : `連絡${i + 1}回目をしたら押す`}">${c ? ic('tick') : ''}連絡${i + 1}${c ? ' ' + c.t : ''}</button>`).join('')}</span>`;
+  return `<span class="calls">${callsOf(u.id).map((c, i) => `<button type="button" class="callb${c ? ' done' : ''}" data-act="homeCall" data-id="${u.id}" data-n="${i + 1}" title="${c ? `${c.t}${c.by ? '（' + esc(c.by) + '）' : ''}に連絡済み。押すと時刻を変えられます` : `連絡${i + 1}回目をしたら押す`}">${c ? ic('tick') : ''}連絡${i + 1}${c ? ' ' + c.t : ''}</button>`).join('')}</span>`;
 }
 function setHomeCall(uid0, n){
   const u = userById(uid0); if (!u || !isHomeToday(u)) return;
@@ -2426,18 +2446,30 @@ function setHomeCall(uid0, n){
   // 毎週の在宅の日は、連絡を残すために今日の予定を作る（weekly：毎週の設定から作ったもの）
   if (!p) { p = touch({ id: today() + '_' + uid0, date: today(), userId: uid0, mode: 'home', part: todayHome(u), weekly: true, staff: state.me }); db.dayplan = db.dayplan.filter(x => x.id !== p.id); db.dayplan.push(p); }
   const k = 'c' + n;
-  if (p[k]) { if (!confirm(`連絡${n}回目（${p[k].t}）の記録を取り消しますか？`)) return; p[k] = null; }
-  else p[k] = { t: hhmm(Date.now()), by: state.me };
+  if (p[k]) { editHomeCall(p, n); return; }
+  p[k] = { t: hhmm(Date.now()), by: state.me };
   touch(p); save(); render();
 }
+// 連絡済みの印を押したとき：時刻を変える・取り消す
+function editHomeCall(p0, n){
+  const k = "c" + n, u = userById(p0.userId), cur = () => planOf(p0.userId) || p0, p = p0;
+  const body = `<div class="field" style="margin-bottom:0"><label class="f" for="hc_t">連絡した時刻</label>${timeSelect('hc_t', 't', p[k].t)}</div>`;
+  const foot = `<button type="button" class="btn danger" id="delBtn">${ic('trash')}記録を取り消す</button>`;
+  openModal(`${esc(u ? u.name : '')}さんの連絡${n}回目`, body, fd => {
+    const t = String(fd.get('t') || '');
+    const q = cur(); if (!q[k] || t === q[k].t) return;
+    q[k] = { ...q[k], t }; touch(q); save(); toast('時刻を変えました');
+  }, foot);
+  $('#delBtn').onclick = () => { if (!confirm(`連絡${n}回目（${p[k].t}）の記録を取り消しますか？`)) return; const q = cur(); q[k] = null; touch(q); save(); modal.close(); render(); };
+}
 // 「今日来る予定の人」の名前の下：今日の予定の印と、変えるボタン
-// 今日の時間帯の印（午前のみ・午後のみ・午前在宅・午後通所・午前通所・午後在宅）。終日通所は空
-const halfText = s => s.am === 'office' && s.pm === 'office' ? '' : s.am === 'office' && !s.pm ? '午前のみ' : s.pm === 'office' && !s.am ? '午後のみ' : s.am === 'home' && s.pm === 'office' ? '午前在宅・午後通所' : s.am === 'office' && s.pm === 'home' ? '午前通所・午後在宅' : '';
+// 今日の時間帯の印（午前のみ・午後から・午前在宅・午後通所・午前通所・午後在宅）。終日通所は空
+const halfText = s => s.am === 'office' && s.pm === 'office' ? '' : s.am === 'office' && !s.pm ? '午前のみ' : s.pm === 'office' && !s.am ? '午後から' : s.am === 'home' && s.pm === 'office' ? '午前在宅・午後通所' : s.am === 'office' && s.pm === 'home' ? '午前通所・午後在宅' : '';
 // 今日の予定：カードの2行目の文字と、右上のボタン
-// 時刻は10分きざみの一覧から選ぶ（入力欄に直接打つと、ブラウザによって値が勝手に進むため）
-const nowRounded = () => { const d = new Date(), m = Math.round((d.getHours() * 60 + d.getMinutes()) / 10) * 10; return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
+// 時刻は5分きざみの一覧から選ぶ（入力欄に直接打つと、ブラウザによって値が勝手に進むため）
+const nowRounded = () => { const d = new Date(), m = Math.ceil((d.getHours() * 60 + d.getMinutes()) / 5) * 5; return String(Math.floor(m / 60) % 24).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
 function timeSelect(id, name, value){
-  const list = []; for (let m = 7 * 60; m <= 19 * 60; m += 10) list.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
+  const list = []; for (let m = 7 * 60; m <= 19 * 60; m += 5) list.push(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'));
   if (value && !list.includes(value)) list.push(value), list.sort();
   return `<select id="${id}" name="${name}">${list.map(t => `<option ${t === value ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
 }
@@ -2581,7 +2613,7 @@ function viewHelp(){
         '<b>「利用者」</b>の<b>「まとめて編集」</b>で、全員の<b>週の予定</b>・<b>現在している作業</b>・<b>取り組み中の作品</b>を表のまま直せます（押すとすぐ保存）。',
         '週の予定は、曜日ごとに上が午前、下が午後のマスです。押すと「通所 → 在宅 → －」と切り替わります。',
         '担当職員は、利用者の「名前・週の予定を編集」か、「まとめて編集」の「担当職員」で決めます。一覧は担当で絞り込めます。',
-        '生活歴や医療状況などの基本情報、受給者証の期限、お薬手帳のことは、<b>「基本情報」</b>タブに入れます。基本情報と画像は、暗号化を設定すると保存できます。',
+        '生活歴や医療状況などの基本情報、受給者証の期限、お薬手帳、定期券の画像は、<b>「基本情報」</b>タブに入れます。基本情報と画像は、暗号化を設定すると保存できます。',
         '何人も新しく登録するときは、<b>「利用者」</b>の<b>「まとめて登録」</b>で、名前とふりがなの一覧を貼り付けます。'
       ])}
       ${!feat('hearing') ? '' : s('palette', '作りたいものを聞き取ったとき', [
@@ -2869,7 +2901,7 @@ function setHelper(id, k, v, on){
 /* ---------- 受給者証・お薬手帳の画像 ----------
    画像は記録のファイルに入れず、共有フォルダの中の専用フォルダに1枚ずつ暗号化して置く（同期を重くしないため）。
    1枚ごとの鍵は記録の側（暗号化されるデータ）に持つので、パスワードを変えても読める。ファイル名に個人名は使わない */
-const DOC_KIND = { cert: '受給者証', med: 'お薬手帳' };
+const DOC_KIND = { cert: '受給者証', med: 'お薬手帳', pass: '定期券' };
 const DOC_MAX = 6, DOC_DIR = '作業支援ノート_画像', DOC_SIDE = 1800;
 const docsOf = (uid, kind) => live('docs').filter(d => d.userId === uid && d.kind === kind).sort((a, b) => (b.date || '').localeCompare(a.date || '') || b._ts - a._ts);
 const imgStore = { dir: null };
@@ -2992,17 +3024,18 @@ function profileCard(u){
 }
 function docsCard(u){
   const dl = (k, v) => `<dt>${k}</dt><dd class="pre">${v ? esc(v) : '<span class="muted">未記入</span>'}</dd>`;
-  const n = u.certUntil ? daysUntil(u.certUntil) : null;
+  const n = u.certUntil ? daysUntil(u.certUntil) : null, np = u.passUntil ? daysUntil(u.passUntil) : null;
   const imgs = kind => {
     const c = docsOf(u.id, kind).length;
     if (!crypt.on) return `<p class="small muted" style="margin:10px 0 0">画像は、データを暗号化すると保存できます。</p>`;
     return `<div class="row" style="gap:8px;margin-top:10px">${c ? `<button class="btn small" data-act="docView" data-id="${u.id}" data-k="${kind}">${ic('image')}画像を見る（${c}枚）</button>` : ''}<button class="btn small" data-act="docAdd" data-id="${u.id}" data-k="${kind}">${ic('plus')}画像を追加</button></div>`;
   };
-  return `<div class="card noprint mt"><div class="card-head">${sec('doc', '受給者証・お薬手帳')}<span class="spacer"></span>${editBtn('editUser', `data-id="${u.id}" data-part="docs"`)}</div>
+  return `<div class="card noprint mt"><div class="card-head">${sec('doc', '受給者証・お薬手帳・定期券')}<span class="spacer"></span>${editBtn('editUser', `data-id="${u.id}" data-part="docs"`)}</div>
     <div class="grid2">
       <div><h3 style="margin-top:0">受給者証</h3><dl class="kv">${piiOn() ? dl('受給者証番号', u.certNo) : ''}<dt>有効期限</dt><dd>${u.certUntil ? fmtDay(u.certUntil) + (n < 0 ? ` <span class="badge hard">${-n}日過ぎています</span>` : n <= 60 ? ` <span class="badge warn">あと${n}日</span>` : '') : '<span class="muted">未記入</span>'}</dd></dl>${imgs('cert')}</div>
       <div><h3 style="margin-top:0">お薬手帳</h3><dl class="kv">${dl('服薬・作業中に気をつけること', u.medNote)}<dt>最終確認日</dt><dd>${u.medChecked ? fmtDay(u.medChecked) : '<span class="muted">未記入</span>'}</dd></dl>${imgs('med')}</div>
-    </div></div>`;
+    </div>
+    <h3 class="doc-pass">定期券</h3><dl class="kv"><dt>有効期限</dt><dd>${u.passUntil ? fmtDay(u.passUntil) + (np < 0 ? ` <span class="badge hard">${-np}日過ぎています</span>` : np <= 14 ? ` <span class="badge warn">あと${np}日</span>` : '') : '<span class="muted">未記入</span>'}</dd></dl>${imgs('pass')}</div>`;
 }
 function hearingCard(u){
   const h = currentHearing(u.id);
@@ -3565,7 +3598,7 @@ const CHANGELOG = [
   ['1.0.0', '2026-11-05', [
     '<b>最初の版です。</b>主な機能は次のとおりです。',
     '<b>今日</b>：お知らせ、今日来る人のカード（声掛けのポイント・取り組み中の作品・雑談メモ）、予定の変更、お弁当、日報用の文章、1枚にまとまる印刷。',
-    '<b>利用者</b>：目標・配慮、食事・アレルギー、制作ヒアリング、制作記録、技術・振れる案件、面談・相談（モニタリング・相談・苦情・トラブルの履歴）、基本情報、受給者証・お薬手帳。',
+    '<b>利用者</b>：目標・配慮、食事・アレルギー、制作ヒアリング、制作記録、技術・振れる案件、面談・相談（モニタリング・相談・苦情・トラブルの履歴）、基本情報、受給者証・お薬手帳・定期券。',
     '<b>制作・案件</b>：作品の進み具合、カレンダー、案件の納期と担当、振れる人を探す。',
     '<b>手順書</b>：よく教える手順を作って、1ページに1手順で印刷。教えられる職員も分かります。',
     '<b>席・機材</b>：曜日ごと・午前午後ごとの割り当て。液タブなどはつないでいるパソコンと同じ人が自動で入ります。',
@@ -4191,6 +4224,9 @@ function viewSettings(){
       <div class="setrow" style="align-items:flex-start"><b>使う機能</b><div style="flex:1;min-width:240px">
         ${FEATURES.map(([k, t, d]) => `<label class="ftoggle"><input type="checkbox" data-feature="${k}" ${feat(k) ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`).join('')}
         <p class="small muted" style="margin:0">オフにすると、その画面やボタンを表示しません。オンに戻すと、記録もそのまま見られます。</p></div></div>
+      <div class="setrow anchor" id="set-notice" style="align-items:flex-start"><b>お知らせに出すもの</b><div style="flex:1;min-width:240px">
+        <div class="chips">${NOTICE_KINDS.map(([k, t]) => `<label class="chip-check"><input type="checkbox" data-notice="${k}" ${noticeOn(k) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
+        <p class="small muted" style="margin:8px 0 0">チェックを外した種類は「今日」のお知らせに出しません。全員の画面に反映されます。</p></div></div>
       ${(() => { const rest = Object.entries(PRESETS).filter(([k]) => !(db.settings.presets || []).includes(k)); return rest.length ? `<div class="setrow" style="align-items:flex-start"><b>作業の種類を追加</b><div style="flex:1;min-width:240px"><div class="chips">${rest.map(([k, p]) => `<button class="btn small" data-act="addPreset" data-v="${k}">${ic('plus')}${esc(p.name)}</button>`).join('')}</div>
         <p class="small muted" style="margin:6px 0 0">押すと、その作業の種類・技術チェックリスト・案件の種類がまとめて追加されます。</p></div></div>` : ''; })()}
     </div>
@@ -4417,11 +4453,12 @@ const USER_PARTS = {
     ['agency', 'その他の機関・つながり', fd => fd.get('agency')],
     ['wishSelf', '本人の主訴', fd => fd.get('wishSelf')],
     ['wishFamily', '家族の主訴', fd => fd.get('wishFamily')]] },
-  docs: { title: '受給者証・お薬手帳', icon: 'doc', fields: [
+  docs: { title: '受給者証・お薬手帳・定期券', icon: 'doc', fields: [
     ['certNo', '受給者証番号', fd => String(fd.get('certNo') || '').trim()],
     ['certUntil', '受給者証の有効期限', fd => fd.get('certUntil') || ''],
     ['medNote', '服薬・作業中に気をつけること', fd => fd.get('medNote')],
-    ['medChecked', 'お薬手帳の最終確認日', fd => fd.get('medChecked') || '']] }
+    ['medChecked', 'お薬手帳の最終確認日', fd => fd.get('medChecked') || ''],
+    ['passUntil', '定期券の有効期限', fd => fd.get('passUntil') || '']] }
 };
 function userPartForm(p, u, isNew){
   if (p === 'profile') {
@@ -4440,7 +4477,7 @@ function userPartForm(p, u, isNew){
       + formSec('speech', '本人と家族の主訴', ar('wishSelf', '本人', '例：絵を描く仕事に就きたい') + ar('wishFamily', '家族', '例：生活リズムを整えてほしい'))
       + formSec('phone', '緊急連絡先', two(tx('em1', '連絡先1', '例：山田 花子（母）'), tx('em1Tel', '電話番号', '', 1)) + two(tx('em2', '連絡先2', '例：山田 一郎（兄）'), tx('em2Tel', '電話番号', '', 1)));
   }
-  if (p === 'docs') return `<div class="grid2" style="gap:0 14px">${piiOn() ? `<div class="field"><label class="f" for="u_certNo">受給者証番号</label><input type="text" id="u_certNo" name="certNo" value="${esc(u.certNo)}" autocomplete="off" inputmode="numeric"></div>` : ''}${dateInput('u_certUntil', 'certUntil', u.certUntil, '受給者証の有効期限')}${dateInput('u_medChecked', 'medChecked', u.medChecked, 'お薬手帳の最終確認日')}</div>${piiOn() ? '' : '<p class="small muted" style="margin:0 0 12px">受給者証番号は、データを暗号化すると入力できます。</p>'}
+  if (p === 'docs') return `<div class="grid2" style="gap:0 14px">${piiOn() ? `<div class="field"><label class="f" for="u_certNo">受給者証番号</label><input type="text" id="u_certNo" name="certNo" value="${esc(u.certNo)}" autocomplete="off" inputmode="numeric"></div>` : ''}${dateInput('u_certUntil', 'certUntil', u.certUntil, '受給者証の有効期限')}${dateInput('u_medChecked', 'medChecked', u.medChecked, 'お薬手帳の最終確認日')}${dateInput('u_passUntil', 'passUntil', u.passUntil, '定期券の有効期限')}</div>${piiOn() ? '' : '<p class="small muted" style="margin:0 0 12px">受給者証番号は、データを暗号化すると入力できます。</p>'}
     <div class="field"><label class="f" for="u_medNote">服薬・作業中に気をつけること</label><textarea id="u_medNote" name="medNote" placeholder="例：昼食後に服薬。午後は眠気が出やすい">${esc(u.medNote)}</textarea></div>`;
   const ta = (name, label, ph) => `<div class="field"><label class="f" for="u_${name}">${label}</label><textarea id="u_${name}" name="${name}" placeholder="${ph || ''}">${esc(u[name])}</textarea></div>`;
   if (p === 'basic') return `<div class="fgrp"><div class="grid2" style="gap:0 14px">
@@ -5908,6 +5945,7 @@ function bindInputs(){
   // 制作系の作業を選んだら、制作ヒアリングも自動でオンにする（自分で切り替えた後は触らない）
   const hear = document.querySelector('#setupForm [name="f_hearing"]');
   if (hear) { hear.addEventListener('change', () => { hear.dataset.auto = ''; }); document.querySelectorAll('#setupForm [name="preset"]').forEach(c => c.addEventListener('change', () => { if (hear.dataset.auto) hear.checked = !!document.querySelector('#setupForm [name="preset"][value="creative"]:checked'); })); }
+  document.querySelectorAll('[data-notice]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.notice; changeSettings(null, () => { const s = new Set(db.settings.noticeOff || []); e.target.checked ? s.delete(k) : s.add(k); db.settings.noticeOff = [...s]; }); toast(e.target.checked ? 'お知らせに出します' : 'お知らせに出さないようにしました'); }));
   document.querySelectorAll('[data-feature]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.feature; changeSettings(null, () => { db.settings.features[k] = e.target.checked; }); toast(e.target.checked ? '機能をオンにしました' : '機能をオフにしました（記録は残っています）'); }));
   on('#retainYears', 'change', e => { changeSettings(null, () => { db.settings.retainYears = Number(e.target.value); }); toast(`${e.target.value}年にしました`); });
   on('#autoLock', 'change', e => { local.set('autoLock', e.target.value === String(LOCK_DEF) ? null : e.target.value); toast(e.target.value === 'off' ? '自動ロックをしない設定にしました' : `${e.target.value}分間操作がないとロックします`); });
@@ -5917,7 +5955,7 @@ const actions = {
   nav: el => { goView(el.dataset.v); },
   sub: el => { state[el.dataset.k] = el.dataset.v; render(); },
   goMode: el => { goView(el.dataset.v); },
-  // 「予定を変える」：お休み、または在宅（終日・午前だけ・午後だけ）を今日だけ選ぶ
+  // 「予定を変える」：お休み、または在宅（終日・午前だけ・午後から）を今日だけ選ぶ
   dayChange: el => {
     const u = userById(el.dataset.id); if (!u) return;
     const w = weekSlots(u, new Date().getDay()), full = isOffice(w, 'am') && isOffice(w, 'pm');
@@ -5953,6 +5991,7 @@ const actions = {
     showUndo(`${u.name}さんを通所にしました（遅刻 ${at}）`, () => prev ? setDayPlan(u.id, prev.mode, prev.part, { ...prev }) : setDayPlan(u.id, null));
   },
   addExtra: () => addExtra(),
+  noticeSettings: () => { state.view = 'settings'; render(); const t = document.getElementById('set-notice'); if (t) t.scrollIntoView({ block: 'center' }); },
   dayCome: el => { const u = userById(el.dataset.id); if (!u) return; setDayPlan(u.id, 'extra'); showUndo(`${u.name}さんは今日は通所にしました`, () => setDayPlan(u.id, null)); },
   lunchSet: el => {
     const id = lunchId(el.dataset.id);
