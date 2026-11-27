@@ -664,6 +664,14 @@ mark{background:var(--warn-bg);color:inherit;border-radius:3px;padding:0 1px;box
 .ndrop-r{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;padding:8px 0;font-size:14px}
 .ndrop-r+.ndrop-r{border-top:1px solid var(--line)}
 .ndrop-r .linkbtn{font-weight:700}
+.ndrop-b:has(.nd-wait){container-type:inline-size}
+.ndrop-r.nd-wait{display:grid;grid-template-columns:minmax(0,1fr) 9.5em auto;gap:6px 16px}
+.nd-wait .nd-who{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;min-width:0}
+.nd-wait .nd-act{display:contents}
+@container (max-width:520px){.ndrop-r.nd-wait{grid-template-columns:minmax(0,1fr) auto}.nd-wait .nd-who{grid-column:1/-1}}
+.waitck{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.waitck input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
+.waitck.on{color:var(--ok);font-weight:700}
 .nrow>.ic{color:var(--muted)}
 .nrow.s0{background:var(--hard-bg);border-left-color:var(--hard)}
 .nrow.s0>.ic{color:var(--hard)}
@@ -2265,7 +2273,7 @@ function todayDrops(){
   const pms = us.filter(u => comesToday(u, 'pm') && !comesToday(u, 'am'));
   const drop = (key, cls, icon, title, list, line) => list.length ? `<details class="nrow ndrop ${cls}"${openDrops.has(key) ? ' open' : ''} data-drop="${key}"><summary>${ic(icon)}<b>${title}</b><span class="muted nw">${list.length}名</span></summary><div class="ndrop-b">${list.map(line).join('')}</div></details>` : '';
   const late = new Date().getHours() >= 12;
-  return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || ''; return `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${why ? `<span class="small muted">${esc(why)}</span>` : ''}<span class="spacer"></span><span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></div>`; })
+  return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || '', c = planOf(u.id).called; return `<div class="ndrop-r nd-wait"><span class="nd-who"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${why ? `<span class="small muted">${esc(why)}</span>` : ''}</span><span class="nd-act"><label class="waitck${c ? ' on' : ''}"${c && c.by ? ` title="${esc(c.by)}"` : ''}><input type="checkbox" data-waitcall="${u.id}"${c ? ' checked' : ''}>${c ? `連絡した ${esc(c.t)}` : '連絡した'}</label><span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></span></div>`; })
     + drop('pm', '', 'calendar', '午後から通所', pms, u => `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</div>`);
 }
 // 今日来る人を「午前から」「午後から」に分ける（人がいない方は出さない）
@@ -5998,6 +6006,8 @@ function bindInputs(){
   // 制作系の作業を選んだら、制作ヒアリングも自動でオンにする（自分で切り替えた後は触らない）
   const hear = document.querySelector('#setupForm [name="f_hearing"]');
   if (hear) { hear.addEventListener('change', () => { hear.dataset.auto = ''; }); document.querySelectorAll('#setupForm [name="preset"]').forEach(c => c.addEventListener('change', () => { if (hear.dataset.auto) hear.checked = !!document.querySelector('#setupForm [name="preset"][value="creative"]:checked'); })); }
+  // まだ来ていない人に連絡したかの印（時刻と職員を残す）
+  document.querySelectorAll('[data-waitcall]').forEach(c => c.addEventListener('change', e => { const p = planOf(e.target.dataset.waitcall); if (!p || p.mode !== 'wait') return; if (e.target.checked) p.called = { t: hhmm(Date.now()), by: state.me }; else delete p.called; touch(p); save(); render(); }));
   document.querySelectorAll('[data-notice]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.notice; changeSettings(null, () => { const s = new Set(db.settings.noticeOff || []); e.target.checked ? s.delete(k) : s.add(k); db.settings.noticeOff = [...s]; }); toast(e.target.checked ? 'お知らせに出します' : 'お知らせに出さないようにしました'); }));
   document.querySelectorAll('[data-feature]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.feature; changeSettings(null, () => { db.settings.features[k] = e.target.checked; }); toast(e.target.checked ? '機能をオンにしました' : '機能をオフにしました（記録は残っています）'); }));
   on('#payDay', 'change', e => { changeSettings(null, () => { db.settings.payDay = Number(e.target.value); }); toast(`毎月${e.target.value}日にしました`); });
