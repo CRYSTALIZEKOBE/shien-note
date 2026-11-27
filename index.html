@@ -2265,8 +2265,8 @@ function todayDrops(){
   const pms = us.filter(u => comesToday(u, 'pm') && !comesToday(u, 'am'));
   const drop = (key, cls, icon, title, list, line) => list.length ? `<details class="nrow ndrop ${cls}"${openDrops.has(key) ? ' open' : ''} data-drop="${key}"><summary>${ic(icon)}<b>${title}</b><span class="muted nw">${list.length}名</span></summary><div class="ndrop-b">${list.map(line).join('')}</div></details>` : '';
   const late = new Date().getHours() >= 12;
-  return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || ''; return `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${why ? `<span class="small muted">${esc(why)}</span>` : ''}<span class="spacer"></span><span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></div>`; })
-    + drop('pm', '', 'calendar', '午後から通所', pms, u => `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</div>`);
+  return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || ''; return `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${why ? `<span class="small muted">${esc(why)}</span>` : ''}<span class="spacer"></span><span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></div>`; })
+    + drop('pm', '', 'calendar', '午後から通所', pms, u => `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</div>`);
 }
 // 今日来る人を「午前から」「午後から」に分ける（人がいない方は出さない）
 const halfGroups = coming => [['午前から', coming.filter(u => comesToday(u, 'am'))], ['午後から', coming.filter(u => !comesToday(u, 'am'))]].filter(([, us]) => us.length);
@@ -2355,7 +2355,7 @@ function noticeCard(due, plans, stale){
   // 在宅の人：15時を過ぎて連絡が足りないとき
   if (new Date().getHours() >= CALL_CHECK_HOUR) live('users').filter(u => !u.archived && isHomeToday(u)).forEach(u => {
     const done = callsOf(u.id).filter(Boolean).length;
-    if (done < HOME_CALLS) N.push({ sev: 1, icon: 'phone', print: false, html: `<b>${esc(u.name)}</b><span class="small muted">在宅：今日の連絡が${done}回です</span>`, act: btn('homeCall', `data-id="${u.id}" data-n="${done + 1}"`, `連絡${done + 1}回目をした`) });
+    if (done < HOME_CALLS) N.push({ sev: 1, icon: 'phone', print: false, html: `<b>${esc(u.name)}</b>${phoneBadge(u)}<span class="small muted">在宅：今日の連絡が${done}回です</span>`, act: btn('homeCall', `data-id="${u.id}" data-n="${done + 1}"`, `連絡${done + 1}回目をした`) });
   });
   K = 'absent';
   // お休みが増えている人（「予定を変える」で入れたお休みを数える）
