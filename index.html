@@ -439,6 +439,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 .vcard .field>.small{margin-top:10px!important;line-height:1.7}
 .vkeep{display:flex;align-items:flex-start;gap:10px;margin-top:18px;font-size:14px;line-height:1.6;cursor:pointer}
 .vkeep input{flex:none;width:20px;height:20px;margin:1px 0 0;accent-color:var(--accent)}
+.vreload{display:inline-flex;cursor:pointer}
 .vh{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .filepick{display:flex;align-items:center;gap:12px;min-height:46px;padding:6px 6px 6px 6px;border:1px solid var(--line);border-radius:10px;background:var(--surface);cursor:pointer}
 .filepick:hover{border-color:var(--accent)}
@@ -6346,19 +6347,38 @@ function start(){
    記録はメモリにだけ置き、ブラウザの保存領域には書かない。別のアプリに切り替える・5分操作しない・「閉じる」で消す */
 function viewerPrune(root){
   root.querySelectorAll('[data-act]').forEach(el => { if (!VIEW_OK.has(el.dataset.act)) el.style.display = 'none'; });
-  root.querySelectorAll('input, select, textarea').forEach(el => { if (el.id !== 'sq' && el.id !== 'sUser') el.disabled = true; });
+  root.querySelectorAll('input, select, textarea').forEach(el => { if (el.id !== 'sq' && el.id !== 'sUser' && el.id !== 'v_new') el.disabled = true; });
 }
 function viewerClose(){ db = normalize({}); location.reload(); }
 function viewerArm(){
   let t = 0;
   const idle = () => { clearTimeout(t); t = setTimeout(viewerClose, 5 * 60 * 1000); };
   ['pointerdown', 'keydown', 'scroll', 'touchstart'].forEach(ev => addEventListener(ev, idle, { passive: true }));
-  document.addEventListener('visibilitychange', () => { if (document.hidden) viewerClose(); });
+  // ファイルを選んでいる間（Android ではファイルの画面が別に開く）はロックしない
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) vPicking = false; else if (!vPicking) viewerClose(); });
+  document.addEventListener('click', e => { if (e.target.id === 'v_new') vPicking = true; });
+  document.addEventListener('change', e => { if (e.target.id === 'v_new') viewerReload(e.target.files[0]); });
+  document.addEventListener('cancel', e => { if (e.target.id === 'v_new') vPicking = false; }, true);
   addEventListener('pagehide', viewerClose);
   idle();
 }
 // 前回のファイルは、暗号化されたまま（パスワードがないと読めない形で）このスマホに覚えておく
-let vFile = null;
+let vFile = null, vKey = null, vPicking = false;
+// 開いている間に、新しいファイルを選んで読み直す（同じパスワードのファイルなら、入れ直さずに開く）
+async function viewerReload(f){
+  vPicking = false;
+  if (!f) return;
+  let env = null; try { env = JSON.parse(await f.text()); } catch(e) {}
+  if (!isEnv(env)) { alert('作業支援ノートの共有データファイルではありません。'); return; }
+  if (!vKey || env.salt !== vKey.salt || (env.iter || ENC_ITER) !== vKey.iter) { alert('パスワードが変わっています。もう一度パスワードを入れてください。'); viewerClose(); return; }
+  let parsed = null; try { parsed = JSON.parse(await decryptEnv(env, vKey.key)); } catch(e) {}
+  if (!parsed || !Array.isArray(parsed.users)) { alert('このファイルは開けませんでした。'); return; }
+  const src = { text: JSON.stringify(env), name: f.name, time: f.lastModified };
+  if (vKey.keep) await vSave(src);
+  vFile = { name: src.name, time: src.time };
+  db = normalize(parsed); primeSettings(); render();
+  toast(`ファイルの日時 ${vTime(src.time)} の内容にしました`);
+}
 const vdb = (mode, fn) => new Promise((res, rej) => {
   const q = indexedDB.open('shienNoteView', 1);
   q.onupgradeneeded = () => q.result.createObjectStore('f');
@@ -6372,7 +6392,8 @@ const vTime = t => { const d = new Date(t); return `${md(ymd(d))} ${hhmm(d)}`; }
 function viewerBanner(){
   return `<div class="alert info small noprint" style="padding:14px 16px">
     <div class="row" style="justify-content:space-between;gap:8px 12px"><b>${ic('lock')}閲覧専用です</b><button class="btn small" data-act="viewerClose" title="記録を画面から消して、パスワードの画面に戻ります">${ic('lock')}ロック</button></div>
-    <div style="margin-top:8px;line-height:1.7">${vFile ? `<div>ファイルの日時：<span class="nw">${vTime(vFile.time)}</span></div>` : ''}<div>別のアプリに切り替えるか、<span class="nw">5分操作しないと</span>ロックします。</div></div></div>`;
+    <div style="margin-top:8px;line-height:1.7">${vFile ? `<div>ファイルの日時：<span class="nw">${vTime(vFile.time)}</span></div>` : ''}<div>別のアプリに切り替えるか、<span class="nw">5分操作しないと</span>ロックします。</div></div>
+    <div style="margin-top:12px"><input type="file" id="v_new" class="vh"><label for="v_new" class="btn small vreload">${ic('sync')}新しいファイルを選ぶ</label></div></div>`;
 }
 async function viewerOpen(){
   const saved = await vLoad();
@@ -6384,10 +6405,10 @@ async function viewerOpen(){
       ${saved ? `<div class="field" id="v_saved"><label class="f">前回のファイル</label>
         <div class="filepick" style="cursor:default"><span class="fp-name on">${esc(saved.name || '共有データファイル')}</span></div>
         <div class="small muted" style="margin-top:6px">ファイルの日時：${vTime(saved.time)}　<span class="nw">（このスマホに暗号化したまま覚えています）</span></div>
-        <div class="row" style="gap:8px 16px;margin-top:8px"><button type="button" class="linkbtn small" id="v_other">別のファイルを選ぶ</button><button type="button" class="linkbtn small" id="v_forget">このスマホから消す</button></div></div>` : ''}
-      <div class="field" id="v_pick" ${saved ? 'hidden' : ''}><label class="f" for="v_file">共有データファイル</label><input type="file" id="v_file" class="vh">
+        <div class="row" style="gap:8px 16px;margin-top:8px"><button type="button" class="linkbtn small" id="v_forget">このスマホから消す</button></div></div>` : ''}
+      <div class="field" id="v_pick"><label class="f" for="v_file">${saved ? '新しいファイル' : '共有データファイル'}</label><input type="file" id="v_file" class="vh">
         <label for="v_file" class="filepick"><span class="fp-btn">${ic('upload')}ファイルを選ぶ</span><span class="fp-name" id="v_name">まだ選んでいません</span></label>
-        <div class="small muted" style="margin-top:6px">Google ドライブの<span class="nw">「作業支援ノート_共有データ.json」</span>を選びます。新しい内容を見るときは、選び直してください。</div>
+        <div class="small muted" style="margin-top:6px">Google ドライブの<span class="nw">「作業支援ノート_共有データ.json」</span>を選びます。${saved ? '選ばないときは、前回のファイルを開きます。' : ''}</div>
         <label class="vkeep"><input type="checkbox" id="v_keep" checked><span>このスマホに覚えておく（暗号化したまま）</span></label></div>
       <div class="field"><label class="f" for="v_pass">パスワード</label><input type="password" id="v_pass" required spellcheck="false" autocapitalize="off" autocomplete="current-password"></div>
       <p class="stale small" id="v_msg" style="margin:0 0 14px" hidden></p>
@@ -6397,25 +6418,26 @@ async function viewerOpen(){
   const say = m => { const p = $('#v_msg'); p.innerHTML = ic('warning') + esc(m); p.hidden = false; };
   $('#v_file').addEventListener('change', () => { const f = $('#v_file').files[0]; $('#v_name').textContent = f ? f.name : 'まだ選んでいません'; $('#v_name').classList.toggle('on', !!f); $('#v_msg').hidden = true; });
   if (saved) {
-    $('#v_other').addEventListener('click', () => { $('#v_saved').hidden = true; $('#v_pick').hidden = false; });
     $('#v_forget').addEventListener('click', async () => { if (!confirm('このスマホに覚えているファイルを消しますか？')) return; await vForget(); viewerOpen(); });
   }
   $('#vform').addEventListener('submit', async e => {
     e.preventDefault();
-    const f = $('#v_pick').hidden ? null : $('#v_file').files[0], pass = $('#v_pass').value;
+    const f = $('#v_file').files[0], pass = $('#v_pass').value;
     $('#v_pass').value = '';
     if (!f && !saved) { say('共有データファイルを選んでください。'); return; }
-    if (!f && !$('#v_pick').hidden) { say('共有データファイルを選んでください。'); return; }
     const src = f ? { text: await f.text(), name: f.name, time: f.lastModified } : saved;
     let env = null;
     try { env = JSON.parse(src.text); } catch(err) { say('作業支援ノートの共有データファイルではありません。'); return; }
     if (!isEnv(env)) { say(env && Array.isArray(env.users) ? '暗号化されていないファイルは開けません。パソコンの作業支援ノートで、データを暗号化してから使ってください。' : '作業支援ノートの共有データファイルではありません。'); return; }
     if (!crypt.supported) { say('このブラウザでは開けません。Chrome または Safari で開いてください。'); return; }
     let text;
-    try { ({ text } = await tryPassword(env, pass)); } catch(err) { say('パスワードが違います。'); return; }
+    let key;
+    try { ({ key, text } = await tryPassword(env, pass)); } catch(err) { say('パスワードが違います。'); return; }
     let parsed = null; try { parsed = JSON.parse(text); } catch(err) {}
     if (!parsed || !Array.isArray(parsed.users)) { say('作業支援ノートの共有データファイルではありません。'); return; }
-    if (f) { if ($('#v_keep').checked) await vSave(src); else await vForget(); }
+    const keep = f ? $('#v_keep').checked : true;
+    if (f) { if (keep) await vSave(src); else await vForget(); }
+    vKey = { key, salt: env.salt, iter: env.iter || ENC_ITER, keep };
     vFile = { name: src.name, time: src.time };
     db = normalize(parsed); crypt.on = true; crypt.salt = env.salt;
     started = true; primeSettings(); state.view = 'today'; $('#menuBtn').style.display = ''; render(); window.scrollTo(0, 0); viewerArm();
