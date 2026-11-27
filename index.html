@@ -653,6 +653,8 @@ mark{background:var(--warn-bg);color:inherit;border-radius:3px;padding:0 1px;box
 /* 今日のお知らせ（1行ずつ） */
 .nrow{display:flex;gap:6px 10px;align-items:center;flex-wrap:wrap;padding:7px 10px;border-radius:10px;border-left:4px solid var(--line);background:var(--surface2)}
 .nrow+.nrow{margin-top:6px}
+.n-label{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 8px 2px}
+.n-att+.n-rest,.n-att+.n-trend,.n-rest+.n-trend{margin-top:22px;padding-top:18px;border-top:1px solid var(--line)}
 .ndrop{display:block;padding:0}
 .ndrop>summary{display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;list-style:none;font-size:14px}
 .ndrop>summary::-webkit-details-marker{display:none}
@@ -665,13 +667,17 @@ mark{background:var(--warn-bg);color:inherit;border-radius:3px;padding:0 1px;box
 .ndrop-r+.ndrop-r{border-top:1px solid var(--line)}
 .ndrop-r .linkbtn{font-weight:700}
 .ndrop-b:has(.nd-wait){container-type:inline-size}
-.ndrop-r.nd-wait{display:grid;grid-template-columns:minmax(0,1fr) 9.5em auto;gap:6px 16px}
+.ndrop-r.nd-wait{display:grid;grid-template-columns:minmax(0,1fr) 9.5em 9em;gap:6px 16px}
+.nd-wait .nd-act>.row{justify-self:end}
 .nd-wait .nd-who{display:flex;align-items:center;flex-wrap:wrap;gap:6px 12px;min-width:0}
 .nd-wait .nd-act{display:contents}
 @container (max-width:520px){.ndrop-r.nd-wait{grid-template-columns:minmax(0,1fr) auto}.nd-wait .nd-who{grid-column:1/-1}}
 .waitck{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}
 .waitck input{width:16px;height:16px;margin:0;accent-color:var(--accent)}
 .waitck.on{color:var(--ok);font-weight:700}
+.wagechip{display:inline-flex;align-items:center;gap:6px;background:none;border:0;padding:0;margin:0;font:inherit;font-size:13px;color:var(--muted);cursor:pointer;white-space:nowrap}
+.wagechip .bx{width:14px;height:14px;border:1.5px solid var(--muted);border-radius:3px;box-sizing:border-box}
+.wagechip.on{color:var(--ok);font-weight:700}
 .nrow>.ic{color:var(--muted)}
 .nrow.s0{background:var(--hard-bg);border-left-color:var(--hard)}
 .nrow.s0>.ic{color:var(--hard)}
@@ -914,7 +920,11 @@ button.cal-cell:hover{background:var(--surface2)}
   .ptable th{background:#eee;color:#000;white-space:nowrap}
   .ptable td:nth-child(-n+3){white-space:nowrap}
   .tpt td,.tpt td:nth-child(-n+3){white-space:normal}
-  .tpt th{text-align:left}
+  .tpt th{text-align:center}
+  .tpt td{vertical-align:middle;padding:5px 8px}
+  .tpt td.c{text-align:center;white-space:nowrap}
+  .tpt td.tpt-g .n{font-weight:400;margin-left:8px;font-size:8.5pt}
+  .homebox{display:none!important}
   .tpt tr{break-inside:avoid}
   .tpt-sum{margin:0 0 6px;font-weight:700}
   .tpt td.tpt-g{font-weight:700;padding-top:8px;border-left:0;border-right:0}
@@ -1280,6 +1290,7 @@ function normalize(d){
     presets: arr(s.presets) || [],
     report: s.report && typeof s.report === 'object' ? s.report : null,
     retainYears: Number(s.retainYears) || 0,
+    pmCall: !!s.pmCall,
     payDay: Math.min(28, Math.max(1, Number(s.payDay) || 25)),
     optAdded: arr(s.optAdded) || [],   // あとの版で選択肢に足したもの（足すのは1回だけ。消したあとは戻さない）
     // 初期設定が済んでいるか（以前から使っているデータは済んでいる扱い）
@@ -2239,13 +2250,13 @@ function viewToday(){
       </div>
     ${feat('equip') ? `<p class="small noprint" style="margin:-4px 0 14px"><button class="linkbtn small" data-act="goMode" data-v="equip">${ic('monitor')}席・機材の割り当てへ</button></p>` : ''}
     ${attnBox(coming, homeToday, offToday)}
-    ${coming.length ? todayPrintTable(coming, eqToday) + `<div class="tgrid noprint">${halfGroups(coming).map(([t, us]) => `<div class="tg-h">${t}<span class="n">${us.length}名</span></div>` + us.map(u => {
+    ${coming.length || homeToday.length || offToday.length ? todayPrintTable(coming, eqToday, homeToday.filter(u => !comesToday(u)), offToday) : ''}${coming.length ? `<div class="tgrid noprint">${halfGroups(coming).map(([t, us]) => `<div class="tg-h">${t}<span class="n">${us.length}名</span></div>` + us.map(u => {
         const ws = worksOf(u.id).filter(w => w.status === 'doing' || w.status === 'plan');
         const mine = eqToday(u.id), plan = todayPlan(u);
         const traits = u.voiceTraits || [], methods = u.voiceMethods || [];
         return `<div class="tcard v-${u.voice || 'none'} today-row" data-act="openUser" data-id="${u.id}" role="button" tabindex="0" aria-label="${esc(u.name)}さんの詳細">
           <div class="tc-head"><div class="tc-name"><b>${esc(u.name)}</b>${voiceBadge(u.voice)}${phoneBadge(u)}${allergyBadge(u)}</div><span class="row" style="gap:6px;flex-wrap:wrap;justify-content:flex-end"><button class="btn small noprint" data-act="newChat" data-id="${u.id}" title="今日話していたことをメモします">${ic('speech')}メモ</button>${plan.btn}</span></div>
-          ${plan.text || feat('equip') || u.mainStaff ? `<div class="tc-sub">${plan.text ? `<span>${plan.text}</span>` : ''}${u.mainStaff ? `<span class="tc-seat">${ic('person')}担当：${esc(u.mainStaff)}</span>` : ''}${feat('equip') && eqs.length ? `<span class="tc-seat">${ic('monitor')}${mine.length ? mine.map(x => esc(x.e.name) + (x.half ? `（${HALF_T[x.half]}）` : '')).join('・') : '<b class="warn-t">席が未割り当て</b>'}</span>` : ''}</div>` : ''}
+          ${plan.text || feat('equip') || u.mainStaff || wageChip(u) ? `<div class="tc-sub">${plan.text ? `<span>${plan.text}</span>` : ''}${u.mainStaff ? `<span class="tc-seat">${ic('person')}担当：${esc(u.mainStaff)}</span>` : ''}${feat('equip') && eqs.length ? `<span class="tc-seat">${ic('monitor')}${mine.length ? mine.map(x => esc(x.e.name) + (x.half ? `（${HALF_T[x.half]}）` : '')).join('・') : '<b class="warn-t">席が未割り当て</b>'}</span>` : ''}${wageChip(u)}</div>` : ''}
           ${(() => { const c = chatsOf(u.id)[0]; return c && daysSince(c.date) <= 30 ? `<div class="tc-chat noprint">${ic('speech')}<span class="d">${md(c.date)}</span><span>${esc(cutText(c.text, 60))}</span></div>` : ''; })()}
           <div class="tc-body${traits.length || methods.length ? '' : ' one'}">
             ${traits.length || methods.length ? `<div class="tc-voice small">${traits.length ? `<div><b style="color:var(--hard)">苦手：</b>${traits.slice(0, 2).map(esc).join('、')}${traits.length > 2 ? ' ほか' : ''}</div>` : ''}${methods.length ? `<div><b style="color:var(--ok)">伝え方：</b>${methods.slice(0, 2).map(esc).join('、')}${methods.length > 2 ? ' ほか' : ''}</div>` : ''}</div>` : ''}
@@ -2253,28 +2264,31 @@ function viewToday(){
               return `<div class="twork"><div class="tw-main"><b>${esc(w.title)}</b>${staleMark(w)}${l && l.next ? `<div class="next">${ic('arrow')}<span>次：${esc(l.next)}</span></div>` : ''}</div><button class="btn small noprint" data-act="addLog" data-id="${w.id}">${ic('pencil')}記録</button></div>`; }).join('') : '<span class="muted small">取り組み中の作品はありません</span>'}</div>
           </div>
         </div>`;
-      }).join('')).join('')}</div>` : `<p class="muted" style="margin:0">今日（${WDN[d]}曜日）に通所する予定の人はいません。</p>`}
+      }).join('')).join('')}</div>` : `<p class="muted${homeToday.length || offToday.length ? " noprint" : ""}" style="margin:0">今日（${WDN[d]}曜日）に通所する予定の人はいません。</p>`}
     ${extraCands().length ? `<p class="noprint extra-add"><button type="button" class="linkbtn small" data-act="addExtra">${ic('plus')}今日だけ来る人を追加</button></p>` : ''}
-    ${homeToday.length ? `<div class="offbox"><b>${ic("home")}今日在宅の人（${homeToday.length}名）</b>${[['all', '終日'], ['am', '午前'], ['pm', '午後']].map(([k, t]) => [t, homeToday.filter(u => todayHome(u) === k)]).filter(([, us]) => us.length).map(([t, us]) => `<div class="tg-h">${t}<span class="n">${us.length}名</span></div><div class="row" style="gap:8px">${us.map(u => `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${homeOK(u) ? '' : homeBadge(u) || `<span class="badge hard">${ic("home")}在宅の申請なし</span>`}${callChecks(u)}${homeEndBtn(u)}</span>`).join("")}</div>`).join('')}</div>` : ""}
-    ${offToday.length ? `<div class="offbox"><b>${ic("calendar")}今日お休みの人（${offToday.length}名）</b><div class="row" style="gap:8px;margin-top:6px">${offToday.map(u => { const why = (planOf(u.id) || {}).note || ''; return `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}<button type="button" class="linkbtn why noprint" data-act="dayChange" data-id="${u.id}" title="お休みの理由を入れる・直す">${why ? esc(why) : '理由を入れる'}</button>${why ? `<span class="why print-only">${esc(why)}</span>` : ''}<button class="btn small noprint dayb" data-act="dayReset" data-id="${u.id}" title="お休みを取り消して、今日来る予定に戻します">${ic("back")}元に戻す</button></span>`; }).join("")}</div></div>` : ""}
+    ${homeToday.length ? `<div class="offbox homebox"><b>${ic("home")}今日在宅の人（${homeToday.length}名）</b>${[['all', '終日'], ['am', '午前'], ['pm', '午後']].map(([k, t]) => [t, homeToday.filter(u => todayHome(u) === k)]).filter(([, us]) => us.length).map(([t, us]) => `<div class="tg-h">${t}<span class="n">${us.length}名</span></div><div class="row" style="gap:8px">${us.map(u => `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${homeOK(u) ? '' : homeBadge(u) || `<span class="badge hard">${ic("home")}在宅の申請なし</span>`}${callChecks(u)}${homeEndBtn(u)}</span>`).join("")}</div>`).join('')}</div>` : ""}
+    ${offToday.length ? `<div class="offbox homebox"><b>${ic("calendar")}今日お休みの人（${offToday.length}名）</b><div class="row" style="gap:8px;margin-top:6px">${offToday.map(u => { const why = (planOf(u.id) || {}).note || ''; return `<span class="offname"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}<button type="button" class="linkbtn why noprint" data-act="dayChange" data-id="${u.id}" title="お休みの理由を入れる・直す">${why ? esc(why) : '理由を入れる'}</button>${why ? `<span class="why print-only">${esc(why)}</span>` : ''}<button class="btn small noprint dayb" data-act="dayReset" data-id="${u.id}" title="お休みを取り消して、今日来る予定に戻します">${ic("back")}元に戻す</button></span>`; }).join("")}</div></div>` : ""}
     ${noDays.length ? `<p class="small muted" style="margin:10px 0 0">${ic('warning')} 通所曜日が未設定の利用者が${noDays.length}名います（${noDays.map(u => esc(u.name)).join('、')}）。各利用者の「名前・週の予定を編集」で設定すると、ここに表示されます。</p>` : ''}
   </div>`;
   if (feat('lunch')) html += lunchCard(coming);
-  if (feat('wage')) html += wageCard();
 
   return html;
 }
 // お知らせの上の折りたたみ：まだ来ていない人（遅刻かお休みかが分かるまで）と、午後から通所の人
 const openDrops = new Set();
 document.addEventListener('toggle', e => { const k = e.target.dataset && e.target.dataset.drop; if (k) { if (e.target.open) openDrops.add(k); else openDrops.delete(k); } }, true);
+// 「連絡した」の印：まだ来ていない人（と、設定で選んだときは午後から通所の人）
+const callCk = u => { const c = (planOf(u.id) || {}).called; return `<label class="waitck${c ? ' on' : ''}"${c && c.by ? ` title="${esc(c.by)}"` : ''}><input type="checkbox" data-waitcall="${u.id}"${c ? ' checked' : ''}>${c ? `連絡した ${esc(c.t)}` : '連絡した'}</label>`; };
 function todayDrops(){
   const us = live('users').filter(u => !u.archived).sort(byKana);
   const waits = us.filter(u => (planOf(u.id) || {}).mode === 'wait');
   const pms = us.filter(u => comesToday(u, 'pm') && !comesToday(u, 'am'));
   const drop = (key, cls, icon, title, list, line) => list.length ? `<details class="nrow ndrop ${cls}"${openDrops.has(key) ? ' open' : ''} data-drop="${key}"><summary>${ic(icon)}<b>${title}</b><span class="muted nw">${list.length}名</span></summary><div class="ndrop-b">${list.map(line).join('')}</div></details>` : '';
   const late = new Date().getHours() >= 12;
-  return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || '', c = planOf(u.id).called; return `<div class="ndrop-r nd-wait"><span class="nd-who"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${why ? `<span class="small muted">${esc(why)}</span>` : ''}</span><span class="nd-act"><label class="waitck${c ? ' on' : ''}"${c && c.by ? ` title="${esc(c.by)}"` : ''}><input type="checkbox" data-waitcall="${u.id}"${c ? ' checked' : ''}>${c ? `連絡した ${esc(c.t)}` : '連絡した'}</label><span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></span></div>`; })
-    + drop('pm', '', 'calendar', '午後から通所', pms, u => `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</div>`);
+  return drop('wait', late ? 's1' : '', 'clock', 'まだ来ていない', waits, u => { const why = planOf(u.id).note || ''; return `<div class="ndrop-r nd-wait"><span class="nd-who"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${why ? `<span class="small muted">${esc(why)}</span>` : ''}</span><span class="nd-act">${callCk(u)}<span class="row noprint" style="gap:8px;flex-wrap:nowrap"><button class="btn small primary" data-act="waitCome" data-id="${u.id}" title="今の時刻で、遅刻として通所にします">通所</button><button class="btn small" data-act="dayChange" data-id="${u.id}" data-v="off" title="理由を入れて、お休みにします">お休み</button></span></span></div>`; })
+    + drop('pm', '', 'calendar', '午後から通所', pms, u => db.settings.pmCall
+      ? `<div class="ndrop-r nd-wait"><span class="nd-who"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</span>${callCk(u)}</div>`
+      : `<div class="ndrop-r"><button class="linkbtn" data-act="openUser" data-id="${u.id}">${esc(u.name)}</button>${phoneBadge(u)}${u.attendNote ? `<span class="small muted">${esc(u.attendNote)}</span>` : ''}</div>`);
 }
 // 今日来る人を「午前から」「午後から」に分ける（人がいない方は出さない）
 const halfGroups = coming => [['午前から', coming.filter(u => comesToday(u, 'am'))], ['午後から', coming.filter(u => !comesToday(u, 'am'))]].filter(([, us]) => us.length);
@@ -2286,19 +2300,21 @@ function attnBox(coming, homeToday, offToday){
   return `<div class="attn">${col('午前から', am)}${col('午後から', pm)}${col('在宅', homeToday.length)}${col('お休み', offToday.length)}</div>`;
 }
 // 「今日」の印刷用：来る人を1人1行の表にまとめる（画面のカードは印刷しない）
-function todayPrintTable(coming, eqToday){
+function todayPrintTable(coming, eqToday, homes = [], offs = []){
   const L = feat('lunch');
   const n = k => coming.filter(u => lunchOf(u.id) === k).length;
-  const row = u => {
-    const plan = todayPlan(u);
-    const seats = feat('equip') ? eqToday(u.id).map(x => esc(x.e.name) + (x.half ? `（${HALF_T[x.half]}）` : '')).join('・') : '';
+  const row = (u, home) => {
+    if (home === 'off') { const why = (planOf(u.id) || {}).note || ''; return `<tr><td><b>${esc(u.name)}</b>${u.mainStaff ? `<div class="small">担当：${esc(u.mainStaff)}</div>` : ''}</td><td>お休み${why ? `<div class="small">${esc(why)}</div>` : ''}</td><td>－</td>${L ? '<td class="c">－</td>' : ''}<td>－</td></tr>`; }
+    const plan = home ? { text: '在宅' + (homeOK(u) ? '' : '<div class="small">在宅の申請なし</div>') } : todayPlan(u);
+    const seats = !home && feat('equip') ? eqToday(u.id).map(x => esc(x.e.name) + (x.half ? `（${HALF_T[x.half]}）` : '')).join('・') : '';
     const ws = worksOf(u.id).filter(w => w.status === 'doing' || w.status === 'plan').map(w => esc(w.title)).join('<br>');
     const note = [u.allergy ? `<b>アレルギー：${esc(u.allergy)}</b>` : '', u.dislike ? `苦手：${esc(u.dislike)}` : '', u.voice === 'hard' || u.voice === 'some' ? VOICE[u.voice].label : ''].filter(Boolean).join('<br>');
-    return `<tr><td><b>${esc(u.name)}</b>${u.mainStaff ? `<div class="small">担当：${esc(u.mainStaff)}</div>` : ''}</td><td>${[plan.text, seats].filter(Boolean).join('<br>') || '－'}</td><td>${ws || '－'}</td>${L ? `<td>${{ yes: 'いる', no: 'いらない' }[lunchOf(u.id)] || '未確認'}</td>` : ''}<td>${note || '－'}</td></tr>`;
+    return `<tr><td><b>${esc(u.name)}</b>${u.mainStaff ? `<div class="small">担当：${esc(u.mainStaff)}</div>` : ''}</td><td>${[plan.text, seats].filter(Boolean).join('<br>') || '－'}</td><td>${ws || '－'}</td>${L ? `<td class="c">${home ? '－' : { yes: 'いる', no: 'いらない' }[lunchOf(u.id)] || '未確認'}</td>` : ''}<td>${note || '－'}</td></tr>`;
   };
   const cols = L ? 5 : 4;
-  const rows = halfGroups(coming).map(([t, us]) => `<tr><td class="tpt-g" colspan="${cols}">${t}</td></tr>` + us.map(row).join('')).join('');
-  return `<div class="print-only">${L ? `<p class="tpt-sum">お弁当：いる ${n('yes')}　いらない ${n('no')}${n('') ? `　未確認 ${n('')}` : ''}</p>` : ''}
+  const grp = (t, us, home) => `<tr><td class="tpt-g" colspan="${cols}">${t}<span class="n">${us.length}名</span></td></tr>` + us.map(u => row(u, home)).join('');
+  const rows = halfGroups(coming).map(([t, us]) => grp(t, us)).join('') + (homes.length ? grp('在宅', homes, true) : '') + (offs.length ? grp('お休み', offs, 'off') : '');
+  return `<div class="print-only">${L && coming.length ? `<p class="tpt-sum">お弁当：いる ${n('yes')}　いらない ${n('no')}${n('') ? `　未確認 ${n('')}` : ''}</p>` : ''}
     <table class="ptable tpt"><thead><tr><th>名前</th><th>予定・席</th><th>取り組み中の作品</th>${L ? '<th>お弁当</th>' : ''}<th>注意</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 // お弁当：今日来る人ごとに「いる・いらない」。もう一度押すと未確認に戻す
@@ -2328,19 +2344,27 @@ function wageYm(){
   const prev = ymShift(ym, -1);
   return live('wage').some(x => x.ym === prev) && wageLeft(prev).length ? prev : '';
 }
-function wageCard(){
-  const ym = wageYm(), us = wageUsers(); if (!ym || !us.length) return '';
+function wageBody(ym){
+  const us = wageUsers();
   const n = k => us.filter(u => ((wageOf(ym, u.id) || {}).v || '') === k).length;
   const opt = (u, k, label) => { const w = wageOf(ym, u.id), on = !!w && w.v === k; return `<button type="button" class="${k}${on ? ' on' : ''}" data-act="wageSet" data-id="${u.id}" data-ym="${ym}" data-v="${k}" aria-pressed="${on}"${on ? ` title="${fmtDay(w.date)}${w.staff ? '（' + esc(w.staff) + '）' : ''}"` : ''}>${on ? ic('check') : ''}${label}</button>`; };
   const text = u => { const w = wageOf(ym, u.id); return !w || !w.v ? 'まだ' : w.v === 'yes' ? `渡した（${fmtDay(w.date)}）` : 'なし'; };
-  return `<div class="card mt noprint anchor" id="wageCard"><div class="card-head">${sec('check', `工賃の受け渡し（${Number(ym.slice(5))}月${payDay()}日）`)}<span class="spacer"></span><span class="lunch-sum"><span>渡した<b>${n('yes')}</b></span>${n('none') ? `<span>なし<b>${n('none')}</b></span>` : ''}${n('') ? `<span>まだ<b>${n('')}</b></span>` : ''}</span></div>
+  return `<div id="wageBox"><div class="lunch-sum" style="margin-bottom:14px"><span>渡した<b>${n('yes')}</b></span>${n('none') ? `<span>なし<b>${n('none')}</b></span>` : ''}${n('') ? `<span>まだ<b>${n('')}</b></span>` : ''}</div>
     <div class="lunch-list">${us.map(u => `<div class="lunch-row"><span class="nm"><b>${esc(u.name)}</b></span><span class="yn noprint">${opt(u, 'yes', '渡した')}${opt(u, 'none', 'なし')}</span><span class="print-only">${text(u)}</span></div>`).join('')}</div>
     <p class="small muted" style="margin:14px 0 0">「なし」は、その月に渡す工賃がない人です。受け渡し日は<span class="nw">「設定」→「事業所の設定」</span>で変えられます。</p></div>`;
 }
+const wageTitle = ym => `工賃の受け渡し（${Number(ym.slice(5))}月${payDay()}日の分）`;
+function openWage(){ const ym = wageYm(); if (!ym) return; openModal(wageTitle(ym), wageBody(ym), null); }
+// 来た人のカードに出す「工賃を渡した」（受け渡しの時期だけ。「なし」の人には出さない）
+function wageChip(u){
+  if (!feat('wage')) return ''; const ym = wageYm(); if (!ym) return '';
+  const w = wageOf(ym, u.id), v = (w || {}).v || ''; if (v === 'none') return '';
+  return `<button type="button" class="wagechip noprint${v ? ' on' : ''}" data-act="wageSet" data-id="${u.id}" data-ym="${ym}" data-v="yes" title="${v ? '押すと取り消します' : '工賃を渡したら押します'}">${v ? ic('check') : '<span class="bx"></span>'}工賃を渡した</button>`;
+}
 // 「今日」のお知らせ：1つの枠に1行ずつ。急ぐものから並べ、多いときは残りをたたむ
-const NOTICE_SHOW = 4;
+const NOTICE_SHOW = 4, TREND_SHOW = 3;
 // お知らせの種類：設定でオフにした種類は出さない（書きかけ・相談・苦情・回復用コード・バックアップなどは常に出す）
-const NOTICE_KINDS = [['order', '案件の納期'], ['deadline', '締切'], ['event', '行事'], ['plan', '面談・モニタリングの予定'], ['stale', '記録がしばらくない作品'], ['concern', '気になる様子が続いている人'], ['absent', 'お休み・遅刻・早退が増えている人'], ['homecall', '在宅の人の連絡回数'], ['homeuntil', '在宅利用の期限'], ['cert', '受給者証の有効期限'], ['pass', '定期券の有効期限'], ['med', 'お薬手帳の確認'], ['retire', '利用終了した人の記録の保存期間'], ['wage', '工賃をまだ渡していない人']];
+const NOTICE_KINDS = [['order', '案件の納期'], ['deadline', '締切'], ['event', '行事'], ['plan', '面談・モニタリングの予定'], ['stale', '記録がしばらくない作品'], ['concern', '気になる様子が続いている人'], ['absent', 'お休み・遅刻・早退が増えている人'], ['homecall', '在宅の人の連絡回数'], ['homeuntil', '在宅利用の期限'], ['cert', '受給者証の有効期限'], ['pass', '定期券の有効期限'], ['med', 'お薬手帳の確認'], ['retire', '利用終了した人の記録の保存期間'], ['wage', '工賃をまだ渡していない人（受け渡し日を過ぎたあと）']];
 const noticeOn = k => !(db.settings.noticeOff || []).includes(k);
 function noticeCard(due, plans, stale){
   const N = []; let K = '';
@@ -2367,18 +2391,22 @@ function noticeCard(due, plans, stale){
   });
   K = 'absent';
   // お休みが増えている人（「予定を変える」で入れたお休みを数える）
-  absentUsers().forEach(({ u, n }) => N.push({ sev: 1, icon: 'calendar', print: true,
+  absentUsers().forEach(({ u, n }) => N.push({ sev: 1, last: true, icon: 'calendar', print: true,
     html: `<b>${esc(u.name)}</b><span class="small muted">お休みが増えています（直近${ABSENT_DAYS}日で${n}回）</span>`,
     act: btn('absentList', `data-id="${u.id}"`, '理由を見る') }));
-  [['late', '遅刻'], ['early', '早退']].forEach(([mode, t]) => absentUsers(mode).forEach(({ u, n }) => N.push({ sev: 1, icon: 'calendar', print: true,
+  [['late', '遅刻'], ['early', '早退']].forEach(([mode, t]) => absentUsers(mode).forEach(({ u, n }) => N.push({ sev: 1, last: true, icon: 'calendar', print: true,
     html: `<b>${esc(u.name)}</b><span class="small muted">${t}が増えています（直近${ABSENT_DAYS}日で${n}回）</span>`,
     act: btn('absentList', `data-id="${u.id}"`, '理由を見る') })));
   // 工賃の受け渡し日を過ぎて、まだ渡していない人
   K = 'wage';
   const wym = feat('wage') ? wageYm() : '';
   if (wym) { const left = wageLeft(wym), due = parse(wagePayDate(wym)); due.setDate(due.getDate() + WAGE_LATE);
-    if (left.length && ymd(due) < today()) N.push({ sev: 1, icon: 'check', print: false,
-      html: `<span>工賃をまだ渡していない人が<b>${left.length}人</b>います（${Number(wym.slice(5))}月${payDay()}日の分）</span>`, act: btn('goWage', '', '確認する') }); }
+    const over = ymd(due) < today(), at = `${Number(wym.slice(5))}月${payDay()}日の分`;
+    K = over ? 'wage' : '';
+    if (over && left.length) N.push({ sev: 1, icon: 'check', print: false,
+      html: `<span>工賃をまだ渡していない人が<b>${left.length}人</b>います（${at}）</span>`, act: btn('goWage', '', 'チェックする') });
+    else if (!over) N.push({ sev: left.length ? 1 : 2, icon: 'check', print: false,
+      html: `<b>工賃の受け渡し</b><span class="small muted">${left.length ? `まだ${left.length}人` : '全員済み'}（${at}）</span>`, act: btn('goWage', '', left.length ? 'チェックする' : '見る') }); }
   // 保存する年数を過ぎた、利用終了の人の記録
   K = 'retire';
   const oldRetired = retiredUsers().filter(retireDue);
@@ -2431,13 +2459,17 @@ function noticeCard(due, plans, stale){
   const drops = todayDrops();
   if (!N.length && !drops) return '';
   N.sort((a, b) => a.sev - b.sev);
+  // お休み・遅刻・早退が増えている人は、別のまとまりにして下に出す
+  const T = N.filter(x => x.last), M = N.filter(x => !x.last);
   const row = x => `<div class="nrow s${x.sev}${x.print ? '' : ' noprint'}">${ic(x.icon)}<span class="ntext">${x.html}</span><span class="nact noprint">${x.act}</span></div>`;
-  const urgent = N.filter(x => x.sev === 0).length;
-  const shown = N.slice(0, Math.max(NOTICE_SHOW, urgent)), rest = N.slice(shown.length);
+  const urgent = M.filter(x => x.sev === 0).length;
+  const shown = M.slice(0, Math.max(NOTICE_SHOW, urgent)), rest = M.slice(shown.length);
+  const tShown = T.slice(0, TREND_SHOW), tRest = T.slice(TREND_SHOW);
   return `<div class="card notices${N.some(x => x.print) ? '' : ' noprint'}" style="margin-bottom:14px">
     <div class="card-head" style="margin-bottom:10px">${sec('flag', `お知らせ<span class="noprint">${N.length ? `（${N.length}件）` : ''}</span>`, urgent ? 'hard' : '')}<span class="spacer"></span><button type="button" class="linkbtn small noprint" data-act="noticeSettings">出す種類</button></div>
-    ${drops}${shown.map(row).join('')}
-    ${rest.length ? `<details class="more" style="margin-top:8px"><summary>ほかに${rest.length}件</summary><div style="margin-top:6px">${rest.map(row).join('')}</div></details>` : ''}
+    ${drops ? `<div class="n-att"><div class="n-label">今日の出欠</div>${drops}</div>` : ''}${M.length ? `<div class="n-rest">${drops || T.length ? `<div class="n-label">予定・確認</div>` : ""}${shown.map(row).join('')}
+    ${rest.length ? `<details class="more" style="margin-top:8px"><summary>ほかに${rest.length}件</summary><div style="margin-top:6px">${rest.map(row).join('')}</div></details>` : ''}</div>` : ''}${T.length ? `<div class="n-trend"><div class="n-label">お休み・遅刻が増えている人</div>${tShown.map(row).join('')}
+    ${tRest.length ? `<details class="more" style="margin-top:8px"><summary>ほかに${tRest.length}件</summary><div style="margin-top:6px">${tRest.map(row).join('')}</div></details>` : ''}</div>` : ''}
   </div>`;
 }
 
@@ -4284,7 +4316,8 @@ function viewSettings(){
       <div class="setrow" style="align-items:flex-start"><b>使う機能</b><div style="flex:1;min-width:240px">
         ${FEATURES.map(([k, t, d]) => `<label class="ftoggle"><input type="checkbox" data-feature="${k}" ${feat(k) ? 'checked' : ''}><span><b>${t}</b><small>${d}</small></span></label>`).join('')}
         <p class="small muted" style="margin:0">オフにすると、その画面やボタンを表示しません。オンに戻すと、記録もそのまま見られます。</p></div></div>
-      ${feat('wage') ? `<div class="setrow"><b>工賃の受け渡し日</b><label class="small row" style="gap:6px">毎月<select id="payDay" style="width:auto">${Array.from({ length: 28 }, (_, i) => i + 1).map(d => `<option value="${d}" ${payDay() === d ? 'selected' : ''}>${d}日</option>`).join('')}</select><span class="muted">この${WAGE_BEFORE}日前から「今日」にチェック欄を出します</span></label></div>` : ''}
+      ${feat('wage') ? `<div class="setrow"><b>工賃の受け渡し日</b><label class="small row" style="gap:6px">毎月<select id="payDay" style="width:auto">${Array.from({ length: 28 }, (_, i) => i + 1).map(d => `<option value="${d}" ${payDay() === d ? 'selected' : ''}>${d}日</option>`).join('')}</select><span class="muted">この${WAGE_BEFORE}日前から「今日」のお知らせに出します</span></label></div>` : ''}
+      <div class="setrow"><b>「連絡した」の印</b><label class="vkeep" style="margin:0;flex:1;min-width:240px"><input type="checkbox" id="pmCall" ${db.settings.pmCall ? 'checked' : ''}><span>「午後から通所」の人にも出す<small class="muted" style="display:block">「まだ来ていない」の人には、いつも出ます。</small></span></label></div>
       <div class="setrow anchor" id="set-notice" style="align-items:flex-start"><b>お知らせに出すもの</b><div style="flex:1;min-width:240px">
         <div class="chips">${NOTICE_KINDS.map(([k, t]) => `<label class="chip-check"><input type="checkbox" data-notice="${k}" ${noticeOn(k) ? 'checked' : ''}><span>${t}</span></label>`).join('')}</div>
         <p class="small muted" style="margin:8px 0 0">チェックを外した種類は「今日」のお知らせに出しません。全員の画面に反映されます。</p></div></div>
@@ -6007,9 +6040,12 @@ function bindInputs(){
   const hear = document.querySelector('#setupForm [name="f_hearing"]');
   if (hear) { hear.addEventListener('change', () => { hear.dataset.auto = ''; }); document.querySelectorAll('#setupForm [name="preset"]').forEach(c => c.addEventListener('change', () => { if (hear.dataset.auto) hear.checked = !!document.querySelector('#setupForm [name="preset"][value="creative"]:checked'); })); }
   // まだ来ていない人に連絡したかの印（時刻と職員を残す）
-  document.querySelectorAll('[data-waitcall]').forEach(c => c.addEventListener('change', e => { const p = planOf(e.target.dataset.waitcall); if (!p || p.mode !== 'wait') return; if (e.target.checked) p.called = { t: hhmm(Date.now()), by: state.me }; else delete p.called; touch(p); save(); render(); }));
+  document.querySelectorAll('[data-waitcall]').forEach(c => c.addEventListener('change', e => { const uid0 = e.target.dataset.waitcall; let p = planOf(uid0);
+    // 今日だけの予定がない人（毎週の午後から通所）は、印を残すためだけの予定を作る（weekly：いつもの予定のまま）
+    if (!p) { p = { id: today() + '_' + uid0, date: today(), userId: uid0, mode: 'call', weekly: true, staff: state.me }; db.dayplan = db.dayplan.filter(x => x.id !== p.id); db.dayplan.push(p); } if (e.target.checked) p.called = { t: hhmm(Date.now()), by: state.me }; else delete p.called; touch(p); save(); render(); }));
   document.querySelectorAll('[data-notice]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.notice; changeSettings(null, () => { const s = new Set(db.settings.noticeOff || []); e.target.checked ? s.delete(k) : s.add(k); db.settings.noticeOff = [...s]; }); toast(e.target.checked ? 'お知らせに出します' : 'お知らせに出さないようにしました'); }));
   document.querySelectorAll('[data-feature]').forEach(c => c.addEventListener('change', e => { const k = e.target.dataset.feature; changeSettings(null, () => { db.settings.features[k] = e.target.checked; }); toast(e.target.checked ? '機能をオンにしました' : '機能をオフにしました（記録は残っています）'); }));
+  on('#pmCall', 'change', e => { changeSettings(null, () => { db.settings.pmCall = e.target.checked; }); toast(e.target.checked ? '午後から通所の人にも出します' : '午後から通所の人には出しません'); });
   on('#payDay', 'change', e => { changeSettings(null, () => { db.settings.payDay = Number(e.target.value); }); toast(`毎月${e.target.value}日にしました`); });
   on('#retainYears', 'change', e => { changeSettings(null, () => { db.settings.retainYears = Number(e.target.value); }); toast(`${e.target.value}年にしました`); });
   on('#autoLock', 'change', e => { local.set('autoLock', e.target.value === String(LOCK_DEF) ? null : e.target.value); toast(e.target.value === 'off' ? '自動ロックをしない設定にしました' : `${e.target.value}分間操作がないとロックします`); });
@@ -6073,8 +6109,9 @@ const actions = {
     if (!x) { x = { id, ym, userId: uid0 }; db.wage.push(x); }
     Object.assign(x, { v: nv, date: today(), staff: state.me, deleted: false }); touch(x);
     save(); render();
+    const box = document.getElementById('wageBox'); if (box && modal.open) { box.outerHTML = wageBody(ym); phraseBreaks(modal); }
   },
-  goWage: () => { const c = document.getElementById('wageCard'); if (c) c.scrollIntoView({ block: 'start', behavior: 'smooth' }); },
+  goWage: () => openWage(),
   dayReset: el => { setDayPlan(el.dataset.id, null); toast('今日の予定を元に戻しました'); },
   removeSamples: () => removeSamples(),
   goSyncGuide: () => { state.view = 'settings'; render(); const c = document.getElementById('set-sync'); if (c) { c.scrollIntoView({ block: 'start' }); const d = c.querySelector('details.optgrp'); if (d) d.open = true; } },
